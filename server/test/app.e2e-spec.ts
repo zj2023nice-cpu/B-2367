@@ -26,6 +26,11 @@ interface SpecialtyDto {
   address: string;
 }
 
+interface PaginatedSpecialties {
+  list: SpecialtyDto[];
+  total: number;
+}
+
 interface ScheduleDto {
   id: number;
   title: string;
@@ -84,17 +89,135 @@ describe('App (e2e)', () => {
     await app.close();
   });
 
-  it('GET /api/specialties returns wrapped list with at least 6 records', async () => {
+  it('GET /api/specialties returns paginated result with list and total', async () => {
     const response = await request(app.getHttpServer())
       .get('/api/specialties')
       .expect(200);
 
-    const body = response.body as ApiResponse<SpecialtyDto[]>;
+    const body = response.body as ApiResponse<PaginatedSpecialties>;
 
     expect(body.code).toBe(0);
     expect(body.message).toBe('ok');
-    expect(Array.isArray(body.data)).toBe(true);
-    expect(body.data.length).toBeGreaterThanOrEqual(6);
+    expect(Array.isArray(body.data.list)).toBe(true);
+    expect(body.data.list.length).toBeGreaterThanOrEqual(6);
+    expect(typeof body.data.total).toBe('number');
+    expect(body.data.total).toBeGreaterThanOrEqual(6);
+  });
+
+  it('GET /api/specialties?keyword=烤鸭 filters by keyword in title/description/address', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/specialties?keyword=烤鸭')
+      .expect(200);
+
+    const body = response.body as ApiResponse<PaginatedSpecialties>;
+
+    expect(body.code).toBe(0);
+    expect(body.data.list.length).toBeGreaterThan(0);
+    body.data.list.forEach((item) => {
+      const match =
+        item.title.includes('烤鸭') ||
+        item.description.includes('烤鸭') ||
+        item.address.includes('烤鸭');
+      expect(match).toBe(true);
+    });
+  });
+
+  it('GET /api/specialties?keyword=  酥脆  trims and collapses spaces', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/specialties?keyword=%20%20酥脆%20%20')
+      .expect(200);
+
+    const body = response.body as ApiResponse<PaginatedSpecialties>;
+
+    expect(body.code).toBe(0);
+    expect(body.data.list.length).toBeGreaterThan(0);
+  });
+
+  it('GET /api/specialties?region=北京,天津 filters by region in address', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/specialties?region=北京,天津')
+      .expect(200);
+
+    const body = response.body as ApiResponse<PaginatedSpecialties>;
+
+    expect(body.code).toBe(0);
+    expect(body.data.list.length).toBeGreaterThan(0);
+    body.data.list.forEach((item) => {
+      const match =
+        item.address.includes('北京') || item.address.includes('天津');
+      expect(match).toBe(true);
+    });
+  });
+
+  it('GET /api/specialties?keyword=北京&region=北京 combines filters with AND', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/specialties?keyword=北京&region=北京')
+      .expect(200);
+
+    const body = response.body as ApiResponse<PaginatedSpecialties>;
+
+    expect(body.code).toBe(0);
+    if (body.data.list.length > 0) {
+      body.data.list.forEach((item) => {
+        const kwMatch =
+          item.title.includes('北京') ||
+          item.description.includes('北京') ||
+          item.address.includes('北京');
+        const regionMatch = item.address.includes('北京');
+        expect(kwMatch).toBe(true);
+        expect(regionMatch).toBe(true);
+      });
+    }
+  });
+
+  it('GET /api/specialties?limit=2 paginates results', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/specialties?limit=2')
+      .expect(200);
+
+    const body = response.body as ApiResponse<PaginatedSpecialties>;
+
+    expect(body.code).toBe(0);
+    expect(body.data.list.length).toBeLessThanOrEqual(2);
+    expect(body.data.total).toBeGreaterThanOrEqual(6);
+  });
+
+  it('GET /api/specialties?limit=2&offset=2 skips first results', async () => {
+    const firstPage = await request(app.getHttpServer())
+      .get('/api/specialties?limit=2&offset=0')
+      .expect(200);
+
+    const secondPage = await request(app.getHttpServer())
+      .get('/api/specialties?limit=2&offset=2')
+      .expect(200);
+
+    const firstBody = firstPage.body as ApiResponse<PaginatedSpecialties>;
+    const secondBody = secondPage.body as ApiResponse<PaginatedSpecialties>;
+
+    expect(firstBody.data.list.length).toBeLessThanOrEqual(2);
+    expect(secondBody.data.list.length).toBeLessThanOrEqual(2);
+
+    if (firstBody.data.list.length > 0 && secondBody.data.list.length > 0) {
+      expect(firstBody.data.list[0].id).not.toBe(secondBody.data.list[0].id);
+    }
+  });
+
+  it('GET /api/specialties?limit=0 returns validation error', async () => {
+    await request(app.getHttpServer())
+      .get('/api/specialties?limit=0')
+      .expect(400);
+  });
+
+  it('GET /api/specialties?offset=-1 returns validation error', async () => {
+    await request(app.getHttpServer())
+      .get('/api/specialties?offset=-1')
+      .expect(400);
+  });
+
+  it('GET /api/specialties?limit=51 returns validation error', async () => {
+    await request(app.getHttpServer())
+      .get('/api/specialties?limit=51')
+      .expect(400);
   });
 
   it('GET /api/schedules returns wrapped list with at least 6 records', async () => {

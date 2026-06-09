@@ -14,47 +14,89 @@ interface SpecialtyItem {
 	address: string
 }
 
+interface QueryState {
+	keyword: string
+	regions: string[]
+}
+
+const REGIONS = ['北京', '天津', '云南', '浙江', '四川', '陕西', '湖南', '广东']
 const MAX_ADDRESS_LEN = 50
 const DEBOUNCE_MS = 400
+const PAGE_SIZE = 10
 
 export default function Specialties() {
+	const [filters, setFilters] = useState<QueryState>({ keyword: '', regions: [] })
 	const [list, setList] = useState<SpecialtyItem[]>([])
+	const [total, setTotal] = useState(0)
 	const [loading, setLoading] = useState(true)
 	const [editingId, setEditingId] = useState<number | null>(null)
 	const [editValue, setEditValue] = useState('')
-	const [keyword, setKeyword] = useState('')
+	const [searchText, setSearchText] = useState('')
+	const requestIdRef = useRef(0)
 	const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
 	useDidShow(() => {
 		checkLoginGuard()
 	})
 
-	const fetchData = useCallback(async (kw: string) => {
-		setLoading(true)
-		try {
-			const params = new URLSearchParams()
-			if (kw) params.set('keyword', kw)
-			const qs = params.toString()
-			const url = `/api/specialties${qs ? `?${qs}` : ''}`
-			const data = await request<SpecialtyItem[]>(url)
-			setList(data || [])
-		} catch (err) {
-			console.error('获取特产列表失败', err)
-		} finally {
-			setLoading(false)
-		}
-	}, [])
+	const fetchPage = useCallback(
+		async (offset: number, append: boolean) => {
+			const rid = ++requestIdRef.current
+			setLoading(true)
+			try {
+				const params = new URLSearchParams()
+				const kw = filters.keyword.trim().replace(/\s+/g, ' ')
+				if (kw) params.set('keyword', kw)
+				if (filters.regions.length) params.set('region', filters.regions.join(','))
+				params.set('limit', String(PAGE_SIZE))
+				if (offset > 0) params.set('offset', String(offset))
+				const qs = params.toString()
+				const url = `/api/specialties${qs ? `?${qs}` : ''}`
+				const result = await request<{ list: SpecialtyItem[]; total: number }>(url)
+				if (requestIdRef.current !== rid) return
+				if (append) {
+					setList((prev) => [...prev, ...result.list])
+				} else {
+					setList(result.list)
+				}
+				setTotal(result.total)
+			} catch (err) {
+				console.error('获取特产列表失败', err)
+			} finally {
+				if (requestIdRef.current === rid) setLoading(false)
+			}
+		},
+		[filters],
+	)
 
 	useEffect(() => {
-		fetchData(keyword)
-	}, [keyword, fetchData])
+		fetchPage(0, false)
+	}, [fetchPage])
 
 	const handleSearchInput = (e: { detail: { value: string } }) => {
 		const val = e.detail.value
+		setSearchText(val)
 		if (timerRef.current) clearTimeout(timerRef.current)
+		if (!val.trim()) {
+			setFilters((prev) => ({ ...prev, keyword: '' }))
+			return
+		}
 		timerRef.current = setTimeout(() => {
-			setKeyword(val)
+			setFilters((prev) => ({ ...prev, keyword: val }))
 		}, DEBOUNCE_MS)
+	}
+
+	const toggleRegion = (region: string) => {
+		setFilters((prev) => ({
+			...prev,
+			regions: prev.regions.includes(region) ? prev.regions.filter((r) => r !== region) : [...prev.regions, region],
+		}))
+	}
+
+	const handleLoadMore = () => {
+		if (!loading && list.length < total) {
+			fetchPage(list.length, true)
+		}
 	}
 
 	const startEdit = (item: SpecialtyItem) => {
@@ -98,18 +140,35 @@ export default function Specialties() {
 		})
 	}
 
+	const hasMore = list.length < total
+
 	return (
 		<View className='specialties-page'>
 			<View className='search-bar'>
-				<Input
-					className='search-input'
-					placeholder='搜索特产名称或地址'
-					onInput={handleSearchInput}
-				/>
+				<Input className='search-input' placeholder='搜索特产名称、描述或地址' onInput={handleSearchInput} value={searchText} />
 			</View>
-			{loading ? (
+			<View className='region-filter'>
+				<ScrollView scrollX className='region-scroll'>
+					<View className='region-chips'>
+						{REGIONS.map((region) => (
+							<View
+								key={region}
+								className={`region-chip ${filters.regions.includes(region) ? 'region-chip-active' : ''}`}
+								onClick={() => toggleRegion(region)}
+							>
+								<Text>{region}</Text>
+							</View>
+						))}
+					</View>
+				</ScrollView>
+			</View>
+			{loading && list.length === 0 ? (
 				<View className='loading-wrap'>
 					<Text>加载中...</Text>
+				</View>
+			) : list.length === 0 ? (
+				<View className='empty-wrap'>
+					<Text>暂无匹配的特产</Text>
 				</View>
 			) : (
 				<ScrollView scrollY className='specialty-list'>
@@ -145,6 +204,13 @@ export default function Specialties() {
 								</View>
 							</View>
 						))}
+						{hasMore && (
+							<View className='load-more-wrap'>
+								<Button className='load-more-btn' onClick={handleLoadMore} disabled={loading}>
+									{loading ? '加载中...' : '加载更多'}
+								</Button>
+							</View>
+						)}
 					</View>
 				</ScrollView>
 			)}

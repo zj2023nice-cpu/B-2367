@@ -13,26 +13,44 @@ export class SpecialtiesService {
     private readonly repo: Repository<Specialty>,
   ) {}
 
-  async findAll(query: QuerySpecialtyDto): Promise<Specialty[]> {
+  async findAll(
+    query: QuerySpecialtyDto,
+  ): Promise<{ list: Specialty[]; total: number }> {
     this.logger.log('查询特产列表');
     const qb = this.repo.createQueryBuilder('s').orderBy('s.id', 'ASC');
 
-    const keyword = query.keyword?.trim();
+    const keyword = query.keyword?.trim().replace(/\s+/g, ' ');
     if (keyword) {
       qb.andWhere(
-        '(s.title LIKE :kw OR s.address LIKE :kw)',
+        '(s.title LIKE :kw OR s.description LIKE :kw OR s.address LIKE :kw)',
         { kw: `%${keyword}%` },
       );
+    }
+
+    const regions = query.region
+      ?.split(',')
+      .map((r) => r.trim())
+      .filter(Boolean);
+    if (regions?.length) {
+      const conditions = regions.map((_, i) => `s.address LIKE :region${i}`);
+      const params = Object.fromEntries(
+        regions.map((r, i) => [`region${i}`, `%${r}%`]),
+      );
+      qb.andWhere(`(${conditions.join(' OR ')})`, params);
     }
 
     if (query.limit) {
       qb.take(query.limit);
     }
 
-    return qb.getMany();
+    if (query.offset) {
+      qb.skip(query.offset);
+    }
+
+    const [list, total] = await qb.getManyAndCount();
+    return { list, total };
   }
 
-  /** 更新特产地址 */
   async updateAddress(id: number, address: string): Promise<Specialty> {
     const item = await this.repo.findOneBy({ id });
     if (!item) {
