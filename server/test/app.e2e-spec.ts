@@ -323,11 +323,6 @@ describe('App (e2e)', () => {
     expect(overviewBody.data.specialtyCount).toBeGreaterThanOrEqual(0);
 
     expect(typeof overviewBody.data.regionCount).toBe('number');
-    expect(overviewBody.data.regionCount).toBeGreaterThanOrEqual(0);
-    expect(overviewBody.data.regionCount).toBeLessThanOrEqual(
-      overviewBody.data.specialtyCount,
-    );
-
     expect(typeof overviewBody.data.scheduleCount).toBe('number');
     expect(overviewBody.data.scheduleCount).toBeGreaterThanOrEqual(0);
 
@@ -336,16 +331,6 @@ describe('App (e2e)', () => {
 
     expect(Array.isArray(overviewBody.data.recentSpecialties)).toBe(true);
 
-    if (overviewBody.data.latestSchedule) {
-      const ls = overviewBody.data.latestSchedule;
-      expect(typeof ls.id).toBe('number');
-      expect(typeof ls.title).toBe('string');
-      expect(typeof ls.dateText).toBe('string');
-
-      const chineseDateRe = /^\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日?/;
-      expect(ls.dateText).toMatch(chineseDateRe);
-    }
-
     const specialtiesRes = await request(app.getHttpServer())
       .get('/api/specialties')
       .expect(200);
@@ -353,14 +338,85 @@ describe('App (e2e)', () => {
     const specialtiesBody =
       specialtiesRes.body as ApiResponse<PaginatedSpecialties>;
 
+    const PROVINCE_RE = /^([\u4e00-\u9fa5]{2,4}(?:省|市|自治区|特别行政区))/;
+    const regionsFromAddresses = new Set<string>();
+    for (const s of specialtiesBody.data.list) {
+      const m = s.address.match(PROVINCE_RE);
+      regionsFromAddresses.add(m ? m[1] : s.address.substring(0, 2));
+    }
+
+    expect(overviewBody.data.regionCount).toBe(regionsFromAddresses.size);
+
     const distinctAddresses = new Set(
       specialtiesBody.data.list.map((s) => s.address),
     );
+    expect(distinctAddresses.size).toBeGreaterThan(0);
     expect(overviewBody.data.regionCount).toBeLessThanOrEqual(
       distinctAddresses.size,
     );
-    expect(overviewBody.data.regionCount).toBeLessThanOrEqual(
-      overviewBody.data.specialtyCount,
-    );
+    if (regionsFromAddresses.size === distinctAddresses.size) {
+      const grouped = new Map<string, number>();
+      for (const s of specialtiesBody.data.list) {
+        const m = s.address.match(PROVINCE_RE);
+        const region = m ? m[1] : s.address.substring(0, 2);
+        grouped.set(region, (grouped.get(region) ?? 0) + 1);
+      }
+      const hasMultiAddressRegion = Array.from(grouped.values()).some(
+        (c) => c > 1,
+      );
+      expect(hasMultiAddressRegion).toBe(false);
+    }
+
+    const schedulesRes = await request(app.getHttpServer())
+      .get('/api/schedules')
+      .expect(200);
+
+    const schedulesBody = schedulesRes.body as ApiResponse<ScheduleDto[]>;
+
+    const CHINESE_FULL =
+      /^(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日?$/;
+    const WEEKDAY_SUFFIX =
+      /\s*[·\s]+\s*(?:星期[一二三四五六日天]|周[一二三四五六日天]|(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\w*)\s*$/i;
+
+    let expectedLatest: {
+      id: number;
+      title: string;
+      dateText: string;
+      ts: number;
+    } | null = null;
+
+    for (const sch of schedulesBody.data) {
+      const stripped = sch.dateText
+        .replace(WEEKDAY_SUFFIX, '')
+        .trim();
+      const m = stripped.match(CHINESE_FULL);
+      if (!m) continue;
+      const year = parseInt(m[1], 10);
+      const month = parseInt(m[2], 10);
+      const day = parseInt(m[3], 10);
+      const d = new Date(year, month - 1, day);
+      if (
+        d.getFullYear() !== year ||
+        d.getMonth() !== month - 1 ||
+        d.getDate() !== day
+      )
+        continue;
+      const ts = d.getTime();
+      if (!expectedLatest || ts > expectedLatest.ts) {
+        expectedLatest = { id: sch.id, title: sch.title, dateText: sch.dateText, ts };
+      }
+    }
+
+    expect(overviewBody.data.latestSchedule).not.toBeNull();
+    const ls = overviewBody.data.latestSchedule!;
+
+    if (expectedLatest) {
+      expect(ls.id).toBe(expectedLatest.id);
+      expect(ls.title).toBe(expectedLatest.title);
+      expect(ls.dateText).toBe(expectedLatest.dateText);
+    }
+
+    const chineseDateRe = /^\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日?/;
+    expect(ls.dateText).toMatch(chineseDateRe);
   });
 });
