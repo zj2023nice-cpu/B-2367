@@ -20,14 +20,25 @@ export interface OverviewRecentSpecialty {
   address: string;
 }
 
-export interface OverviewResult {
+export interface OverviewQuickEntry {
+  key: string;
+  label: string;
+  icon: string;
+  path: string;
+}
+
+export interface OverviewStats {
   specialtyCount: number;
   regionCount: number;
   scheduleCount: number;
-  completedScheduleCount: number;
-  latestSchedule: OverviewLatestSchedule | null;
+}
+
+export interface OverviewResult {
   defaultNickname: string;
+  stats: OverviewStats;
+  latestSchedule: OverviewLatestSchedule | null;
   recentSpecialties: OverviewRecentSpecialty[];
+  quickEntries: OverviewQuickEntry[];
 }
 
 @Injectable()
@@ -43,47 +54,85 @@ export class OverviewService {
     private readonly userProfileRepo: Repository<UserProfile>,
   ) {}
 
+  private static readonly QUICK_ENTRIES: OverviewQuickEntry[] = [
+    { key: 'specialties', label: '特产', icon: '🎁', path: '/pages/specialties/index' },
+    { key: 'schedule', label: '日程', icon: '📅', path: '/pages/schedule/index' },
+    { key: 'map', label: '地图', icon: '🗺️', path: '/pages/map/index' },
+    { key: 'user', label: '我的', icon: '👤', path: '/pages/user/index' },
+  ];
+
   async getOverview(): Promise<OverviewResult> {
     this.logger.log('获取首页总览数据');
 
     const [
-      specialtyCount,
-      addressRows,
-      scheduleCount,
-      completedScheduleCount,
-      scheduleRows,
-      defaultProfile,
-    ] = await Promise.all([
+      specialtyCountResult,
+      addressRowsResult,
+      scheduleCountResult,
+      scheduleRowsResult,
+      defaultProfileResult,
+      recentSpecialtiesResult,
+    ] = await Promise.allSettled([
       this.specialtyRepo.count(),
       this.specialtyRepo
         .createQueryBuilder('s')
         .select('s.address', 'address')
         .getRawMany(),
       this.scheduleRepo.count(),
-      this.scheduleRepo.count({ where: { completed: true } }),
       this.scheduleRepo
         .createQueryBuilder('sc')
         .select(['sc.id', 'sc.title', 'sc.dateText'])
         .orderBy('sc.id', 'DESC')
         .getMany(),
       this.userProfileRepo.findOne({ where: { key: 'default' } }),
+      this.specialtyRepo
+        .createQueryBuilder('s')
+        .select(['s.id', 's.title', 's.imageUrl', 's.address'])
+        .orderBy('s.updatedAt', 'DESC')
+        .limit(4)
+        .getMany(),
     ]);
 
+    const specialtyCount =
+      specialtyCountResult.status === 'fulfilled' ? specialtyCountResult.value : 0;
+
+    const addressRows =
+      addressRowsResult.status === 'fulfilled' ? addressRowsResult.value : [];
     const addresses = addressRows.map(
       (row: { address?: string }) => row.address ?? '',
     );
     const regionCount = countDistinctRegions(addresses);
 
+    const scheduleCount =
+      scheduleCountResult.status === 'fulfilled' ? scheduleCountResult.value : 0;
+
+    const scheduleRows =
+      scheduleRowsResult.status === 'fulfilled' ? scheduleRowsResult.value : [];
     const latestSchedule = this.pickLatestParseableSchedule(scheduleRows);
 
+    const defaultProfile =
+      defaultProfileResult.status === 'fulfilled'
+        ? defaultProfileResult.value
+        : null;
+
+    const recentRows =
+      recentSpecialtiesResult.status === 'fulfilled'
+        ? recentSpecialtiesResult.value
+        : [];
+    const recentSpecialties: OverviewRecentSpecialty[] = recentRows.map(
+      (r: Pick<Specialty, 'id' | 'title' | 'imageUrl' | 'address'>) => ({
+        id: r.id,
+        title: r.title,
+        imageUrl: r.imageUrl,
+        address: r.address,
+      }),
+    );
+
     return {
-      specialtyCount,
-      regionCount,
-      scheduleCount,
-      completedScheduleCount,
-      latestSchedule,
       defaultNickname: defaultProfile?.nickname ?? '游客',
-      recentSpecialties: [],
+      stats: { specialtyCount, regionCount, scheduleCount },
+      latestSchedule,
+      recentSpecialties,
+      quickEntries: OverviewService.QUICK_ENTRIES,
     };
   }
 
