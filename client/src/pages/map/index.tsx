@@ -6,6 +6,10 @@ import { request } from '../../services/request'
 import { getFromCache, setToCache } from '../../utils/geocodeCache'
 import './index.scss'
 
+function normalizeAddress(address: string): string {
+	return address.trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
 interface GeocodeResult {
 	address: string
 	lat: number
@@ -128,10 +132,19 @@ export default function MapPage() {
 	const geocodeBatch = async () => {
 		setLoading(true)
 		try {
+			const seen = new Set<string>()
+			const uniqueAddresses: string[] = []
+			for (const addr of batchAddresses!) {
+				const norm = normalizeAddress(addr)
+				if (seen.has(norm)) continue
+				seen.add(norm)
+				uniqueAddresses.push(addr)
+			}
+
 			const cachedMarkers: MarkerItem[] = []
 			const uncachedAddresses: string[] = []
 
-			for (const addr of batchAddresses!) {
+			for (const addr of uniqueAddresses) {
 				const cached = getFromCache(addr)
 				if (cached && Number.isFinite(cached.lat) && Number.isFinite(cached.lng)) {
 					cachedMarkers.push({
