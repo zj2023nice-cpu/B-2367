@@ -1,10 +1,9 @@
-import { useState } from 'react'
-import { View, Input, Button } from '@tarojs/components'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { View, Input, Button, Text } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import { setLogin } from '../../utils/auth'
 import './index.scss'
 
-/** 演示环境固定账号 */
 const FIXED_USERNAME = 'admin'
 const FIXED_PASSWORD = '123456'
 
@@ -12,36 +11,68 @@ export default function Login() {
 	const [username, setUsername] = useState('')
 	const [password, setPassword] = useState('')
 	const [loading, setLoading] = useState(false)
+	const [showPassword, setShowPassword] = useState(false)
+	const [errorMsg, setErrorMsg] = useState('')
 
-	/** 处理登录 */
-	const handleLogin = () => {
-		// 非空校验
+	const timerRef = useRef<ReturnType<typeof setTimeout>[]>([])
+	const unmountedRef = useRef(false)
+
+	useEffect(() => {
+		return () => {
+			unmountedRef.current = true
+			timerRef.current.forEach(clearTimeout)
+			timerRef.current = []
+		}
+	}, [])
+
+	const pushTimer = useCallback((fn: () => void, delay: number) => {
+		const id = setTimeout(() => {
+			timerRef.current = timerRef.current.filter(t => t !== id)
+			if (!unmountedRef.current) fn()
+		}, delay)
+		timerRef.current.push(id)
+		return id
+	}, [])
+
+	const handleLogin = useCallback(() => {
+		if (loading) return
+
 		if (!username.trim()) {
-			Taro.showToast({ title: '请输入账号', icon: 'none' })
+			setErrorMsg('请输入账号')
 			return
 		}
 		if (!password.trim()) {
-			Taro.showToast({ title: '请输入密码', icon: 'none' })
+			setErrorMsg('请输入密码')
 			return
 		}
 
 		setLoading(true)
+		setErrorMsg('')
 
-		// 模拟登录延迟
-		setTimeout(() => {
+		pushTimer(() => {
 			if (username === FIXED_USERNAME && password === FIXED_PASSWORD) {
 				setLogin()
 				Taro.showToast({ title: '登录成功', icon: 'success', duration: 1000 })
-				setTimeout(() => {
+				pushTimer(() => {
 					Taro.switchTab({ url: '/pages/home/index' })
 				}, 1000)
 				return
 			}
 
-			Taro.showToast({ title: '账号或密码错误', icon: 'none', duration: 2000 })
+			setErrorMsg('账号或密码错误')
 			setLoading(false)
 		}, 500)
-	}
+	}, [loading, username, password, pushTimer])
+
+	const handleUsernameChange = useCallback((e) => {
+		setUsername(e.detail.value)
+		setErrorMsg('')
+	}, [])
+
+	const handlePasswordChange = useCallback((e) => {
+		setPassword(e.detail.value)
+		setErrorMsg('')
+	}, [])
 
 	return (
 		<View className='login-page'>
@@ -60,29 +91,44 @@ export default function Login() {
 						placeholder='请输入账号'
 						placeholderStyle='color: #bbb'
 						value={username}
-						onInput={(e) => setUsername(e.detail.value)}
+						onInput={handleUsernameChange}
+						onConfirm={handleLogin}
 					/>
 				</View>
 
 				<View className='input-group'>
 					<View className='input-label'>密码</View>
-					<Input
-						className='input-field'
-						type='text'
-						password
-						placeholder='请输入密码'
-						placeholderStyle='color: #bbb'
-						value={password}
-						onInput={(e) => setPassword(e.detail.value)}
-					/>
+					<View className='input-wrapper'>
+						<Input
+							className='input-field input-field--password'
+							type={showPassword ? 'text' : 'safe-password'}
+							password={!showPassword}
+							placeholder='请输入密码'
+							placeholderStyle='color: #bbb'
+							value={password}
+							onInput={handlePasswordChange}
+							onConfirm={handleLogin}
+						/>
+						<View
+							className='password-toggle'
+							onClick={() => setShowPassword(v => !v)}
+						>
+							<Text className='password-toggle-icon'>
+								{showPassword ? '🙈' : '👁️'}
+							</Text>
+						</View>
+					</View>
 				</View>
+
+				{errorMsg ? <View className='error-msg'>{errorMsg}</View> : null}
 
 				<Button
 					className='login-btn'
 					loading={loading}
 					disabled={loading}
 					hoverClass='login-btn-hover'
-					onClick={handleLogin}>
+					onClick={handleLogin}
+				>
 					{loading ? '登录中...' : '登 录'}
 				</Button>
 			</View>
