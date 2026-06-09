@@ -44,6 +44,13 @@ interface UserProfileDto {
   avatarUrl: string;
 }
 
+interface OverviewRecentSpecialtyDto {
+  id: number;
+  title: string;
+  imageUrl: string;
+  address: string;
+}
+
 interface OverviewDto {
   specialtyCount: number;
   regionCount: number;
@@ -54,7 +61,7 @@ interface OverviewDto {
     dateText: string;
   } | null;
   defaultNickname: string;
-  recentSpecialties: unknown[];
+  recentSpecialties: OverviewRecentSpecialtyDto[];
 }
 
 describe('App (e2e)', () => {
@@ -302,29 +309,58 @@ describe('App (e2e)', () => {
     expect(geocodeMock).toHaveBeenCalledWith('___INVALID_ADDRESS___');
   });
 
-  it('GET /api/overview returns aggregated stats with all required fields', async () => {
-    const response = await request(app.getHttpServer())
+  it('GET /api/overview returns aggregated stats with semantic correctness', async () => {
+    const overviewRes = await request(app.getHttpServer())
       .get('/api/overview')
       .expect(200);
 
-    const body = response.body as ApiResponse<OverviewDto>;
+    const overviewBody = overviewRes.body as ApiResponse<OverviewDto>;
 
-    expect(body.code).toBe(0);
-    expect(body.message).toBe('ok');
-    expect(typeof body.data.specialtyCount).toBe('number');
-    expect(body.data.specialtyCount).toBeGreaterThanOrEqual(0);
-    expect(typeof body.data.regionCount).toBe('number');
-    expect(body.data.regionCount).toBeGreaterThanOrEqual(0);
-    expect(typeof body.data.scheduleCount).toBe('number');
-    expect(body.data.scheduleCount).toBeGreaterThanOrEqual(0);
-    expect(typeof body.data.defaultNickname).toBe('string');
-    expect(body.data.defaultNickname.length).toBeGreaterThan(0);
-    expect(Array.isArray(body.data.recentSpecialties)).toBe(true);
+    expect(overviewBody.code).toBe(0);
+    expect(overviewBody.message).toBe('ok');
 
-    if (body.data.latestSchedule) {
-      expect(typeof body.data.latestSchedule.id).toBe('number');
-      expect(typeof body.data.latestSchedule.title).toBe('string');
-      expect(typeof body.data.latestSchedule.dateText).toBe('string');
+    expect(typeof overviewBody.data.specialtyCount).toBe('number');
+    expect(overviewBody.data.specialtyCount).toBeGreaterThanOrEqual(0);
+
+    expect(typeof overviewBody.data.regionCount).toBe('number');
+    expect(overviewBody.data.regionCount).toBeGreaterThanOrEqual(0);
+    expect(overviewBody.data.regionCount).toBeLessThanOrEqual(
+      overviewBody.data.specialtyCount,
+    );
+
+    expect(typeof overviewBody.data.scheduleCount).toBe('number');
+    expect(overviewBody.data.scheduleCount).toBeGreaterThanOrEqual(0);
+
+    expect(typeof overviewBody.data.defaultNickname).toBe('string');
+    expect(overviewBody.data.defaultNickname.length).toBeGreaterThan(0);
+
+    expect(Array.isArray(overviewBody.data.recentSpecialties)).toBe(true);
+
+    if (overviewBody.data.latestSchedule) {
+      const ls = overviewBody.data.latestSchedule;
+      expect(typeof ls.id).toBe('number');
+      expect(typeof ls.title).toBe('string');
+      expect(typeof ls.dateText).toBe('string');
+
+      const chineseDateRe = /^\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日?/;
+      expect(ls.dateText).toMatch(chineseDateRe);
     }
+
+    const specialtiesRes = await request(app.getHttpServer())
+      .get('/api/specialties')
+      .expect(200);
+
+    const specialtiesBody =
+      specialtiesRes.body as ApiResponse<PaginatedSpecialties>;
+
+    const distinctAddresses = new Set(
+      specialtiesBody.data.list.map((s) => s.address),
+    );
+    expect(overviewBody.data.regionCount).toBeLessThanOrEqual(
+      distinctAddresses.size,
+    );
+    expect(overviewBody.data.regionCount).toBeLessThanOrEqual(
+      overviewBody.data.specialtyCount,
+    );
   });
 });

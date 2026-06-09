@@ -13,13 +13,20 @@ interface OverviewLatestSchedule {
 	dateText?: string
 }
 
+interface OverviewRecentSpecialty {
+	id?: number
+	title?: string
+	imageUrl?: string
+	address?: string
+}
+
 interface OverviewData {
 	specialtyCount?: number
 	regionCount?: number
 	scheduleCount?: number
 	latestSchedule?: OverviewLatestSchedule | null
 	defaultNickname?: string
-	recentSpecialties?: unknown[]
+	recentSpecialties?: OverviewRecentSpecialty[]
 }
 
 type PageState = 'loading' | 'empty' | 'data'

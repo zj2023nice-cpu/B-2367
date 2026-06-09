@@ -4,11 +4,20 @@ import { Repository } from 'typeorm';
 import { Specialty } from '../specialties/specialty.entity';
 import { Schedule } from '../schedule/schedule.entity';
 import { UserProfile } from '../user/user-profile.entity';
+import { parseDateText } from './date-parser';
+import { countDistinctRegions } from './region-extractor';
 
 export interface OverviewLatestSchedule {
   id: number;
   title: string;
   dateText: string;
+}
+
+export interface OverviewRecentSpecialty {
+  id: number;
+  title: string;
+  imageUrl: string;
+  address: string;
 }
 
 export interface OverviewResult {
@@ -17,7 +26,7 @@ export interface OverviewResult {
   scheduleCount: number;
   latestSchedule: OverviewLatestSchedule | null;
   defaultNickname: string;
-  recentSpecialties: Specialty[];
+  recentSpecialties: OverviewRecentSpecialty[];
 }
 
 @Injectable()
@@ -38,41 +47,61 @@ export class OverviewService {
 
     const [
       specialtyCount,
-      regionCount,
+      addressRows,
       scheduleCount,
-      latestSchedule,
+      scheduleRows,
       defaultProfile,
     ] = await Promise.all([
       this.specialtyRepo.count(),
       this.specialtyRepo
         .createQueryBuilder('s')
-        .select('COUNT(DISTINCT s.address)', 'cnt')
-        .getRawOne()
-        .then((row) => Number(row?.cnt ?? 0)),
+        .select('s.address', 'address')
+        .getRawMany(),
       this.scheduleRepo.count(),
       this.scheduleRepo
         .createQueryBuilder('sc')
+        .select(['sc.id', 'sc.title', 'sc.dateText'])
         .orderBy('sc.id', 'DESC')
-        .limit(1)
-        .getOne(),
+        .getMany(),
       this.userProfileRepo.findOne({ where: { key: 'default' } }),
     ]);
 
-    const latest: OverviewLatestSchedule | null = latestSchedule
-      ? {
-          id: latestSchedule.id,
-          title: latestSchedule.title,
-          dateText: latestSchedule.dateText,
-        }
-      : null;
+    const addresses = addressRows.map(
+      (row: { address?: string }) => row.address ?? '',
+    );
+    const regionCount = countDistinctRegions(addresses);
+
+    const latestSchedule = this.pickLatestParseableSchedule(scheduleRows);
 
     return {
       specialtyCount,
       regionCount,
       scheduleCount,
-      latestSchedule: latest,
+      latestSchedule,
       defaultNickname: defaultProfile?.nickname ?? '游客',
       recentSpecialties: [],
+    };
+  }
+
+  private pickLatestParseableSchedule(
+    rows: Pick<Schedule, 'id' | 'title' | 'dateText'>[],
+  ): OverviewLatestSchedule | null {
+    let best: { row: Pick<Schedule, 'id' | 'title' | 'dateText'>; ts: number } | null = null;
+
+    for (const row of rows) {
+      const parsed = parseDateText(row.dateText);
+      if (!parsed.valid || !parsed.date) continue;
+      const ts = parsed.date.getTime();
+      if (!best || ts > best.ts) {
+        best = { row, ts };
+      }
+    }
+
+    if (!best) return null;
+    return {
+      id: best.row.id,
+      title: best.row.title,
+      dateText: best.row.dateText,
     };
   }
 }
