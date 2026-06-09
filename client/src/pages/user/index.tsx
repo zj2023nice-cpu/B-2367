@@ -169,7 +169,6 @@ export default function User() {
 								placeholder='请输入昵称(2-12字符)'
 								onInput={(e) => setTempNickname(e.detail.value)}
 								focus
-								maxlength={12}
 							/>
 							<Button className='save-btn' loading={saving} onClick={saveNickname} hoverClass='save-btn-hover'>
 								保存

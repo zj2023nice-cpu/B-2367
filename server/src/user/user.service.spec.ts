@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { BadRequestException } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 import { UserProfile } from './user-profile.entity';
 import { UserService } from './user.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -33,7 +35,7 @@ describe('UserService', () => {
     service = module.get<UserService>(UserService);
   });
 
-  describe('updateProfile — nickname validation', () => {
+  describe('updateProfile — nickname validation (normalize-first)', () => {
     it('rejects emoji-only nickname', async () => {
       const dto = new UpdateProfileDto();
       dto.nickname = '😀😂🤣';
@@ -63,9 +65,39 @@ describe('UserService', () => {
       expect(mockRepo.save).not.toHaveBeenCalled();
     });
 
-    it('accepts a valid nickname with spaces in the middle', async () => {
+    it('rejects whitespace-only nickname', async () => {
       const dto = new UpdateProfileDto();
-      dto.nickname = 'Hello  World';
+      dto.nickname = '   ';
+      dto.avatarUrl = '';
+
+      await expect(service.updateProfile(dto)).rejects.toThrow(BadRequestException);
+      expect(mockRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects emoji + spaces only nickname', async () => {
+      const dto = new UpdateProfileDto();
+      dto.nickname = '  😀  😂  ';
+      dto.avatarUrl = '';
+
+      await expect(service.updateProfile(dto)).rejects.toThrow(BadRequestException);
+      await expect(service.updateProfile(dto)).rejects.toThrow('昵称不能只由表情或空白组成');
+      expect(mockRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('accepts a valid nickname with leading/trailing spaces after normalization', async () => {
+      const dto = new UpdateProfileDto();
+      dto.nickname = '  张三  ';
+      dto.avatarUrl = '';
+
+      await service.updateProfile(dto);
+      expect(mockRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ nickname: '张三' }),
+      );
+    });
+
+    it('accepts a valid nickname with consecutive internal spaces after normalization', async () => {
+      const dto = new UpdateProfileDto();
+      dto.nickname = 'Hello   World';
       dto.avatarUrl = '';
 
       await service.updateProfile(dto);
@@ -74,7 +106,7 @@ describe('UserService', () => {
       );
     });
 
-    it('trims leading/trailing whitespace and collapses internal whitespace', async () => {
+    it('trims and collapses all whitespace patterns', async () => {
       const dto = new UpdateProfileDto();
       dto.nickname = '  张   三  ';
       dto.avatarUrl = '';
@@ -83,6 +115,75 @@ describe('UserService', () => {
       expect(mockRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({ nickname: '张 三' }),
       );
+    });
+
+    it('accepts a 2-character nickname that is valid after normalization', async () => {
+      const dto = new UpdateProfileDto();
+      dto.nickname = '  小明  ';
+      dto.avatarUrl = '';
+
+      await service.updateProfile(dto);
+      expect(mockRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ nickname: '小明' }),
+      );
+    });
+  });
+
+  describe('UpdateProfileDto — @Transform normalizes before validation', () => {
+    it('normalizes leading/trailing/consecutive whitespace before @Length check', async () => {
+      const dto = plainToInstance(UpdateProfileDto, {
+        nickname: '  张   三  ',
+        avatarUrl: '',
+      });
+      const errors = await validate(dto);
+      expect(errors.length).toBe(0);
+      expect(dto.nickname).toBe('张 三');
+    });
+
+    it('rejects nickname that becomes empty after normalization', async () => {
+      const dto = plainToInstance(UpdateProfileDto, {
+        nickname: '   ',
+        avatarUrl: '',
+      });
+      const errors = await validate(dto);
+      expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it('rejects emoji-only nickname after normalization', async () => {
+      const dto = plainToInstance(UpdateProfileDto, {
+        nickname: '  😀😂  ',
+        avatarUrl: '',
+      });
+      const errors = await validate(dto);
+      expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it('accepts mixed emoji + text nickname after normalization', async () => {
+      const dto = plainToInstance(UpdateProfileDto, {
+        nickname: '小明😀',
+        avatarUrl: '',
+      });
+      const errors = await validate(dto);
+      expect(errors.length).toBe(0);
+      expect(dto.nickname).toBe('小明😀');
+    });
+
+    it('rejects nickname shorter than 2 after normalization', async () => {
+      const dto = plainToInstance(UpdateProfileDto, {
+        nickname: ' A ',
+        avatarUrl: '',
+      });
+      const errors = await validate(dto);
+      expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it('rejects nickname longer than 12 after normalization', async () => {
+      const dto = plainToInstance(UpdateProfileDto, {
+        nickname: '一二三四五六七八九十十一十',
+        avatarUrl: '',
+      });
+      const errors = await validate(dto);
+      expect(errors.length).toBeGreaterThan(0);
     });
   });
 
