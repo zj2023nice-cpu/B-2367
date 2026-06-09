@@ -4,6 +4,7 @@ import Taro, { useDidShow } from '@tarojs/taro'
 import { request } from '../../services/request'
 import { checkLoginGuard } from '../../utils/auth'
 import { resolveImageUrl } from '../../utils/common'
+import { invalidateCacheByAddresses } from '../../utils/geocodeCache'
 import './index.scss'
 
 interface SpecialtyItem {
@@ -127,6 +128,8 @@ export default function Specialties() {
 				method: 'PUT',
 				data: { address: trimmed },
 			})
+			const oldAddress = original ? original.address : ''
+			invalidateCacheByAddresses([oldAddress, trimmed])
 			setList((prev) => prev.map((i) => (i.id === editingId ? { ...i, address: trimmed } : i)))
 		} catch {
 			Taro.showToast({ title: '保存失败', icon: 'none' })
