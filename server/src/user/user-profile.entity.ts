@@ -20,6 +20,9 @@ export class UserProfile {
   @Column({ name: 'avatar_url', type: 'text', default: '' })
   avatarUrl: string;
 
+  @Column({ type: 'text', default: '' })
+  bio: string;
+
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 }

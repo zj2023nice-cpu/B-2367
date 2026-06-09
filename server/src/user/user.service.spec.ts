@@ -215,16 +215,229 @@ describe('UserService', () => {
     it('returns guest defaults when no profile exists', async () => {
       mockRepo.findOne.mockResolvedValue(null);
       const result = await service.getProfile();
-      expect(result).toEqual({ nickname: '游客', avatarUrl: '' });
+      expect(result).toEqual({ nickname: '游客', avatarUrl: '', bio: '' });
     });
 
     it('returns stored profile when it exists', async () => {
       mockRepo.findOne.mockResolvedValue({
         nickname: '小明',
         avatarUrl: '/images/avatar.png',
+        bio: '热爱旅行的美食家',
       });
       const result = await service.getProfile();
-      expect(result).toEqual({ nickname: '小明', avatarUrl: '/images/avatar.png' });
+      expect(result).toEqual({ nickname: '小明', avatarUrl: '/images/avatar.png', bio: '热爱旅行的美食家' });
+    });
+  });
+
+  describe('updateProfile — bio validation', () => {
+    it('accepts a valid bio', async () => {
+      const dto = new UpdateProfileDto();
+      dto.nickname = '测试用户';
+      dto.bio = '热爱旅行';
+
+      await service.updateProfile(dto);
+      expect(mockRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ bio: '热爱旅行' }),
+      );
+    });
+
+    it('accepts an empty bio', async () => {
+      const dto = new UpdateProfileDto();
+      dto.nickname = '测试用户';
+      dto.bio = '';
+
+      await service.updateProfile(dto);
+      expect(mockRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ bio: '' }),
+      );
+    });
+
+    it('trims and collapses whitespace in bio', async () => {
+      const dto = new UpdateProfileDto();
+      dto.nickname = '测试用户';
+      dto.bio = '  热爱   旅行  ';
+
+      await service.updateProfile(dto);
+      expect(mockRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ bio: '热爱 旅行' }),
+      );
+    });
+
+    it('normalizes whitespace-only bio to empty string', async () => {
+      const dto = new UpdateProfileDto();
+      dto.nickname = '测试用户';
+      dto.bio = '   ';
+
+      await service.updateProfile(dto);
+      expect(mockRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ bio: '' }),
+      );
+    });
+
+    it('rejects bio longer than 60 characters after sanitization', async () => {
+      const dto = new UpdateProfileDto();
+      dto.nickname = '测试用户';
+      dto.bio = '一'.repeat(61);
+
+      await expect(service.updateProfile(dto)).rejects.toThrow(BadRequestException);
+      await expect(service.updateProfile(dto)).rejects.toThrow('简介最多60个字符');
+      expect(mockRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('accepts bio at exactly 60 characters', async () => {
+      const dto = new UpdateProfileDto();
+      dto.nickname = '测试用户';
+      dto.bio = '一'.repeat(60);
+
+      await service.updateProfile(dto);
+      expect(mockRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ bio: '一'.repeat(60) }),
+      );
+    });
+  });
+
+  describe('updateProfile — multi-field concurrent editing safety', () => {
+    it('updating bio preserves existing nickname and avatarUrl', async () => {
+      mockRepo.findOne.mockResolvedValue({
+        key: 'default',
+        nickname: '旧昵称',
+        avatarUrl: 'https://example.com/old.png',
+        bio: '旧简介',
+      });
+
+      const dto = new UpdateProfileDto();
+      dto.nickname = '旧昵称';
+      dto.avatarUrl = 'https://example.com/old.png';
+      dto.bio = '新简介';
+
+      await service.updateProfile(dto);
+      expect(mockRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          nickname: '旧昵称',
+          avatarUrl: 'https://example.com/old.png',
+          bio: '新简介',
+        }),
+      );
+    });
+
+    it('updating nickname preserves existing bio and avatarUrl', async () => {
+      mockRepo.findOne.mockResolvedValue({
+        key: 'default',
+        nickname: '旧昵称',
+        avatarUrl: 'https://example.com/old.png',
+        bio: '保留的简介',
+      });
+
+      const dto = new UpdateProfileDto();
+      dto.nickname = '新昵称';
+      dto.avatarUrl = 'https://example.com/old.png';
+      dto.bio = '保留的简介';
+
+      await service.updateProfile(dto);
+      expect(mockRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          nickname: '新昵称',
+          avatarUrl: 'https://example.com/old.png',
+          bio: '保留的简介',
+        }),
+      );
+    });
+
+    it('does not overwrite bio when bio is omitted from dto', async () => {
+      mockRepo.findOne.mockResolvedValue({
+        key: 'default',
+        nickname: '旧昵称',
+        avatarUrl: '',
+        bio: '不应被覆盖的简介',
+      });
+
+      const dto = new UpdateProfileDto();
+      dto.nickname = '新昵称';
+      dto.avatarUrl = '';
+
+      await service.updateProfile(dto);
+      expect(mockRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          nickname: '新昵称',
+          bio: '不应被覆盖的简介',
+        }),
+      );
+    });
+
+    it('sequential updates with latest values do not revert old values', async () => {
+      mockRepo.findOne.mockResolvedValue({
+        key: 'default',
+        nickname: '昵称A',
+        avatarUrl: '',
+        bio: '简介A',
+      });
+
+      const dto1 = new UpdateProfileDto();
+      dto1.nickname = '昵称A';
+      dto1.avatarUrl = '';
+      dto1.bio = '简介B';
+      await service.updateProfile(dto1);
+
+      mockRepo.findOne.mockResolvedValue({
+        key: 'default',
+        nickname: '昵称A',
+        avatarUrl: '',
+        bio: '简介B',
+      });
+
+      const dto2 = new UpdateProfileDto();
+      dto2.nickname = '昵称B';
+      dto2.avatarUrl = '';
+      dto2.bio = '简介B';
+      await service.updateProfile(dto2);
+
+      const saved = mockRepo.save.mock.calls[mockRepo.save.mock.calls.length - 1][0];
+      expect(saved.nickname).toBe('昵称B');
+      expect(saved.bio).toBe('简介B');
+    });
+  });
+
+  describe('UpdateProfileDto — bio @Transform normalizes before validation', () => {
+    it('normalizes whitespace in bio before @MaxLength check', async () => {
+      const dto = plainToInstance(UpdateProfileDto, {
+        nickname: '小明',
+        avatarUrl: '',
+        bio: '  热爱   旅行  ',
+      });
+      const errors = await validate(dto);
+      expect(errors.length).toBe(0);
+      expect(dto.bio).toBe('热爱 旅行');
+    });
+
+    it('normalizes whitespace-only bio to empty string', async () => {
+      const dto = plainToInstance(UpdateProfileDto, {
+        nickname: '小明',
+        avatarUrl: '',
+        bio: '   ',
+      });
+      const errors = await validate(dto);
+      expect(errors.length).toBe(0);
+      expect(dto.bio).toBe('');
+    });
+
+    it('rejects bio longer than 60 after normalization', async () => {
+      const dto = plainToInstance(UpdateProfileDto, {
+        nickname: '小明',
+        avatarUrl: '',
+        bio: '一'.repeat(61),
+      });
+      const errors = await validate(dto);
+      expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it('accepts bio at exactly 60 characters', async () => {
+      const dto = plainToInstance(UpdateProfileDto, {
+        nickname: '小明',
+        avatarUrl: '',
+        bio: '一'.repeat(60),
+      });
+      const errors = await validate(dto);
+      expect(errors.length).toBe(0);
     });
   });
 });

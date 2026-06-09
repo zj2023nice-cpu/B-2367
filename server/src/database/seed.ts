@@ -222,6 +222,7 @@ export async function seedDatabase(dataSource: DataSource): Promise<void> {
       key: 'default',
       nickname: '游客',
       avatarUrl: '',
+      bio: '',
     });
     logger.log('用户资料初始化完成');
   }

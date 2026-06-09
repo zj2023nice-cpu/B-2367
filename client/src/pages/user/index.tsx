@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { View, Image, Text, Input, Button } from '@tarojs/components'
+import { View, Image, Text, Input, Button, Textarea } from '@tarojs/components'
 import Taro, { useDidShow } from '@tarojs/taro'
 import { request } from '../../services/request'
 import { checkLoginGuard, clearLogin } from '../../utils/auth'
@@ -21,6 +21,17 @@ function validateNickname(raw: string): string | null {
 	return null
 }
 
+function sanitizeBio(raw: string): string {
+	const trimmed = raw.trim()
+	return trimmed.replace(/\s+/g, ' ')
+}
+
+function validateBio(raw: string): string | null {
+	const sanitized = sanitizeBio(raw)
+	if (sanitized.length > 60) return '简介最多60个字符'
+	return null
+}
+
 function isWxfilePreview(url: string): boolean {
 	return /^wxfile:\/\//i.test(url)
 }
@@ -28,8 +39,11 @@ function isWxfilePreview(url: string): boolean {
 export default function User() {
 	const [nickname, setNickname] = useState('')
 	const [avatarUrl, setAvatarUrl] = useState('')
-	const [editing, setEditing] = useState(false)
+	const [bio, setBio] = useState('')
+	const [editingNickname, setEditingNickname] = useState(false)
+	const [editingBio, setEditingBio] = useState(false)
 	const [tempNickname, setTempNickname] = useState('')
+	const [tempBio, setTempBio] = useState('')
 	const [saving, setSaving] = useState(false)
 	const [updatingAvatar, setUpdatingAvatar] = useState(false)
 	const pauseProfileSyncRef = useRef(false)
@@ -41,14 +55,22 @@ export default function User() {
 
 	const fetchProfile = async () => {
 		try {
-			const data = await request<{ nickname: string; avatarUrl: string }>('/api/user/profile')
+			const data = await request<{ nickname: string; avatarUrl: string; bio: string }>('/api/user/profile')
 			if (data && !pauseProfileSyncRef.current) {
 				setNickname(data.nickname)
 				setAvatarUrl(data.avatarUrl || '')
+				setBio(data.bio || '')
 			}
 		} catch (err) {
 			console.error('获取用户资料失败', err)
 		}
+	}
+
+	const buildPayload = (overrides: Partial<{ nickname: string; avatarUrl: string; bio: string }> = {}) => {
+		const safeNickname = sanitizeNickname(overrides.nickname ?? nickname)
+		const payloadAvatarUrl = isWxfilePreview(overrides.avatarUrl ?? avatarUrl) ? '' : (overrides.avatarUrl ?? avatarUrl)
+		const safeBio = sanitizeBio(overrides.bio ?? bio)
+		return { nickname: safeNickname, avatarUrl: payloadAvatarUrl, bio: safeBio }
 	}
 
 	const chooseAvatar = async () => {
@@ -76,11 +98,11 @@ export default function User() {
 				setAvatarUrl(tempPath)
 				previewApplied = true
 
-				const payloadAvatarUrl = isWxfilePreview(tempPath) ? '' : tempPath
+				const payload = buildPayload({ avatarUrl: tempPath })
 
 				await request('/api/user/profile', {
 					method: 'PUT',
-					data: { nickname: safeNickname, avatarUrl: payloadAvatarUrl },
+					data: payload,
 				})
 
 				setNickname(safeNickname)
@@ -104,9 +126,9 @@ export default function User() {
 		}
 	}
 
-	const startEdit = () => {
+	const startEditNickname = () => {
 		setTempNickname(nickname)
-		setEditing(true)
+		setEditingNickname(true)
 	}
 
 	const saveNickname = async () => {
@@ -119,19 +141,57 @@ export default function User() {
 		const sanitized = sanitizeNickname(tempNickname)
 		setSaving(true)
 		try {
-			const payloadAvatarUrl = isWxfilePreview(avatarUrl) ? '' : avatarUrl
+			const payload = buildPayload({ nickname: sanitized })
 			await request('/api/user/profile', {
 				method: 'PUT',
-				data: { nickname: sanitized, avatarUrl: payloadAvatarUrl },
+				data: payload,
 			})
 			setNickname(sanitized)
-			setEditing(false)
+			setEditingNickname(false)
 			Taro.showToast({ title: '保存成功', icon: 'success' })
 		} catch (err) {
 			console.error('保存昵称失败', err)
 		} finally {
 			setSaving(false)
 		}
+	}
+
+	const startEditBio = () => {
+		setTempBio(bio)
+		setEditingBio(true)
+	}
+
+	const saveBio = async () => {
+		const error = validateBio(tempBio)
+		if (error) {
+			Taro.showToast({ title: error, icon: 'none' })
+			return
+		}
+
+		const sanitized = sanitizeBio(tempBio)
+		setSaving(true)
+		try {
+			const payload = buildPayload({ bio: sanitized })
+			await request('/api/user/profile', {
+				method: 'PUT',
+				data: payload,
+			})
+			setBio(sanitized)
+			setEditingBio(false)
+			Taro.showToast({ title: '保存成功', icon: 'success' })
+		} catch (err) {
+			console.error('保存简介失败', err)
+		} finally {
+			setSaving(false)
+		}
+	}
+
+	const cancelEditNickname = () => {
+		setEditingNickname(false)
+	}
+
+	const cancelEditBio = () => {
+		setEditingBio(false)
 	}
 
 	const handleLogout = () => {
@@ -161,7 +221,7 @@ export default function User() {
 					<View className='avatar-edit-tip'>{updatingAvatar ? '更新中...' : '点击更换'}</View>
 				</View>
 				<View className='user-name-wrap'>
-					{editing ? (
+					{editingNickname ? (
 						<View className='edit-row'>
 							<Input
 								className='nickname-input'
@@ -173,14 +233,41 @@ export default function User() {
 							<Button className='save-btn' loading={saving} onClick={saveNickname} hoverClass='save-btn-hover'>
 								保存
 							</Button>
-							<Button className='cancel-btn' onClick={() => setEditing(false)}>
+							<Button className='cancel-btn' onClick={cancelEditNickname}>
 								取消
 							</Button>
 						</View>
 					) : (
-						<View className='name-row' onClick={startEdit}>
+						<View className='name-row' onClick={startEditNickname}>
 							<Text className='nickname-text'>{nickname}</Text>
 							<Text className='edit-icon'>✏️</Text>
+						</View>
+					)}
+				</View>
+				<View className='user-bio-wrap'>
+					{editingBio ? (
+						<View className='bio-edit-row'>
+							<Textarea
+								className='bio-textarea'
+								value={tempBio}
+								placeholder='请输入个人简介(最多60字)'
+								maxlength={60}
+								onInput={(e) => setTempBio(e.detail.value)}
+								focus
+							/>
+							<View className='bio-edit-actions'>
+								<Button className='save-btn bio-save-btn' loading={saving} onClick={saveBio} hoverClass='save-btn-hover'>
+									保存
+								</Button>
+								<Button className='cancel-btn' onClick={cancelEditBio}>
+									取消
+								</Button>
+							</View>
+						</View>
+					) : (
+						<View className='bio-display' onClick={startEditBio}>
+							<Text className='bio-text'>{bio || '点击添加个人简介'}</Text>
+							{!bio && <Text className='bio-placeholder-icon'>✏️</Text>}
 						</View>
 					)}
 				</View>

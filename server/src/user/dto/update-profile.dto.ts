@@ -4,12 +4,18 @@ import {
   IsString,
   Length,
   Matches,
+  MaxLength,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 const NO_EMOJI_ONLY = /^(?![\p{Emoji_Presentation}\p{Extended_Pictographic}\s]*$).*/u;
 
 function normalizeNickname(value: string): string {
+  if (typeof value !== 'string') return value;
+  return value.trim().replace(/\s+/g, ' ');
+}
+
+function normalizeBio(value: string): string {
   if (typeof value !== 'string') return value;
   return value.trim().replace(/\s+/g, ' ');
 }
@@ -27,4 +33,10 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   avatarUrl?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => normalizeBio(value))
+  @IsString({ message: '简介必须是字符串' })
+  @MaxLength(60, { message: '简介最多60个字符' })
+  bio?: string;
 }

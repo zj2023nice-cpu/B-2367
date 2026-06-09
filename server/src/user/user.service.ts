@@ -12,6 +12,12 @@ function sanitizeNickname(raw: string): string {
   return collapsed;
 }
 
+function sanitizeBio(raw: string): string {
+  const trimmed = raw.trim();
+  const collapsed = trimmed.replace(/\s+/g, ' ');
+  return collapsed;
+}
+
 function isEmojiOnly(text: string): boolean {
   return EMOJI_ONLY_REGEX.test(text);
 }
@@ -25,13 +31,13 @@ export class UserService {
     private readonly repo: Repository<UserProfile>,
   ) {}
 
-  async getProfile(): Promise<{ nickname: string; avatarUrl: string }> {
+  async getProfile(): Promise<{ nickname: string; avatarUrl: string; bio: string }> {
     this.logger.log('获取用户资料');
     const profile = await this.repo.findOne({ where: { key: 'default' } });
     if (!profile) {
-      return { nickname: '游客', avatarUrl: '' };
+      return { nickname: '游客', avatarUrl: '', bio: '' };
     }
-    return { nickname: profile.nickname, avatarUrl: profile.avatarUrl };
+    return { nickname: profile.nickname, avatarUrl: profile.avatarUrl, bio: profile.bio };
   }
 
   async updateProfile(dto: UpdateProfileDto): Promise<void> {
@@ -51,6 +57,14 @@ export class UserService {
       avatarUrl = '';
     }
 
+    let bio: string | undefined;
+    if (dto.bio !== undefined) {
+      bio = sanitizeBio(dto.bio);
+      if (bio.length > 60) {
+        throw new BadRequestException('简介最多60个字符');
+      }
+    }
+
     this.logger.log(`更新用户资料: nickname=${sanitized}`);
     let profile = await this.repo.findOne({ where: { key: 'default' } });
     if (!profile) {
@@ -58,11 +72,15 @@ export class UserService {
         key: 'default',
         nickname: sanitized,
         avatarUrl: avatarUrl ?? '',
+        bio: bio ?? '',
       });
     } else {
       profile.nickname = sanitized;
       if (avatarUrl !== undefined) {
         profile.avatarUrl = avatarUrl;
+      }
+      if (bio !== undefined) {
+        profile.bio = bio;
       }
     }
     await this.repo.save(profile);

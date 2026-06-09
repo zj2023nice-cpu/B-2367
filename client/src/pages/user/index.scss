@@ -107,6 +107,58 @@
 	padding: 0 16px !important;
 }
 
+.user-bio-wrap {
+	width: 100%;
+	margin-top: 16px;
+}
+
+.bio-display {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 48px;
+	padding: 8px 0;
+}
+
+.bio-text {
+	font-size: 26px;
+	color: rgba(255, 255, 255, 0.85);
+	line-height: 1.5;
+	text-align: center;
+	word-break: break-all;
+}
+
+.bio-placeholder-icon {
+	font-size: 24px;
+	margin-left: 8px;
+}
+
+.bio-edit-row {
+	width: 100%;
+}
+
+.bio-textarea {
+	width: 100% !important;
+	min-height: 120px !important;
+	background: rgba(255, 255, 255, 0.9) !important;
+	border-radius: 12px !important;
+	padding: 16px 20px !important;
+	font-size: 26px !important;
+	color: #333 !important;
+	box-sizing: border-box !important;
+	line-height: 1.5 !important;
+}
+
+.bio-edit-actions {
+	display: flex;
+	justify-content: flex-end;
+	margin-top: 12px;
+}
+
+.bio-save-btn {
+	margin-left: 0 !important;
+}
+
 .user-actions {
 	padding: 60px 40px;
 }
