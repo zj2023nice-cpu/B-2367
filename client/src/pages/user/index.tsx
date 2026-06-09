@@ -29,6 +29,7 @@ function sanitizeBio(raw: string): string {
 function validateBio(raw: string): string | null {
 	const sanitized = sanitizeBio(raw)
 	if (sanitized.length > 60) return '简介最多60个字符'
+	if (sanitized === '' && raw.length > 0) return '简介不能仅由空白组成'
 	return null
 }
 

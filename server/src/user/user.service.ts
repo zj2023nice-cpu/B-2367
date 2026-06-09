@@ -63,6 +63,9 @@ export class UserService {
       if (bio.length > 60) {
         throw new BadRequestException('简介最多60个字符');
       }
+      if (bio === '' && dto.bio.length > 0) {
+        throw new BadRequestException('简介不能仅由空白组成');
+      }
     }
 
     this.logger.log(`更新用户资料: nickname=${sanitized}`);

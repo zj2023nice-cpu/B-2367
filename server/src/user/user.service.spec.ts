@@ -263,15 +263,14 @@ describe('UserService', () => {
       );
     });
 
-    it('normalizes whitespace-only bio to empty string', async () => {
+    it('rejects whitespace-only bio', async () => {
       const dto = new UpdateProfileDto();
       dto.nickname = '测试用户';
       dto.bio = '   ';
 
-      await service.updateProfile(dto);
-      expect(mockRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ bio: '' }),
-      );
+      await expect(service.updateProfile(dto)).rejects.toThrow(BadRequestException);
+      await expect(service.updateProfile(dto)).rejects.toThrow('简介不能仅由空白组成');
+      expect(mockRepo.save).not.toHaveBeenCalled();
     });
 
     it('rejects bio longer than 60 characters after sanitization', async () => {
@@ -397,8 +396,29 @@ describe('UserService', () => {
     });
   });
 
-  describe('UpdateProfileDto — bio @Transform normalizes before validation', () => {
-    it('normalizes whitespace in bio before @MaxLength check', async () => {
+  describe('UpdateProfileDto — bio field passes through without transform', () => {
+    it('accepts a valid bio string', async () => {
+      const dto = plainToInstance(UpdateProfileDto, {
+        nickname: '小明',
+        avatarUrl: '',
+        bio: '热爱旅行',
+      });
+      const errors = await validate(dto);
+      expect(errors.length).toBe(0);
+      expect(dto.bio).toBe('热爱旅行');
+    });
+
+    it('accepts an empty bio string', async () => {
+      const dto = plainToInstance(UpdateProfileDto, {
+        nickname: '小明',
+        avatarUrl: '',
+        bio: '',
+      });
+      const errors = await validate(dto);
+      expect(errors.length).toBe(0);
+    });
+
+    it('accepts bio with whitespace (service sanitizes)', async () => {
       const dto = plainToInstance(UpdateProfileDto, {
         nickname: '小明',
         avatarUrl: '',
@@ -406,10 +426,10 @@ describe('UserService', () => {
       });
       const errors = await validate(dto);
       expect(errors.length).toBe(0);
-      expect(dto.bio).toBe('热爱 旅行');
+      expect(dto.bio).toBe('  热爱   旅行  ');
     });
 
-    it('normalizes whitespace-only bio to empty string', async () => {
+    it('accepts whitespace-only bio (service rejects)', async () => {
       const dto = plainToInstance(UpdateProfileDto, {
         nickname: '小明',
         avatarUrl: '',
@@ -417,27 +437,72 @@ describe('UserService', () => {
       });
       const errors = await validate(dto);
       expect(errors.length).toBe(0);
-      expect(dto.bio).toBe('');
+    });
+  });
+
+  describe('updateProfile — avatar+bio sequential confirmation regression', () => {
+    it('saves avatar then bio, final result reflects last confirmed values', async () => {
+      mockRepo.findOne.mockResolvedValue({
+        key: 'default',
+        nickname: '用户',
+        avatarUrl: '',
+        bio: '',
+      });
+
+      const dto1 = new UpdateProfileDto();
+      dto1.nickname = '用户';
+      dto1.avatarUrl = 'https://example.com/avatar1.png';
+      dto1.bio = '';
+      await service.updateProfile(dto1);
+
+      mockRepo.findOne.mockResolvedValue({
+        key: 'default',
+        nickname: '用户',
+        avatarUrl: 'https://example.com/avatar1.png',
+        bio: '',
+      });
+
+      const dto2 = new UpdateProfileDto();
+      dto2.nickname = '用户';
+      dto2.avatarUrl = 'https://example.com/avatar1.png';
+      dto2.bio = '美食家';
+      await service.updateProfile(dto2);
+
+      const saved = mockRepo.save.mock.calls[mockRepo.save.mock.calls.length - 1][0];
+      expect(saved.avatarUrl).toBe('https://example.com/avatar1.png');
+      expect(saved.bio).toBe('美食家');
     });
 
-    it('rejects bio longer than 60 after normalization', async () => {
-      const dto = plainToInstance(UpdateProfileDto, {
-        nickname: '小明',
+    it('saves bio then avatar, final result reflects last confirmed values', async () => {
+      mockRepo.findOne.mockResolvedValue({
+        key: 'default',
+        nickname: '用户',
         avatarUrl: '',
-        bio: '一'.repeat(61),
+        bio: '',
       });
-      const errors = await validate(dto);
-      expect(errors.length).toBeGreaterThan(0);
-    });
 
-    it('accepts bio at exactly 60 characters', async () => {
-      const dto = plainToInstance(UpdateProfileDto, {
-        nickname: '小明',
+      const dto1 = new UpdateProfileDto();
+      dto1.nickname = '用户';
+      dto1.avatarUrl = '';
+      dto1.bio = '旅行者';
+      await service.updateProfile(dto1);
+
+      mockRepo.findOne.mockResolvedValue({
+        key: 'default',
+        nickname: '用户',
         avatarUrl: '',
-        bio: '一'.repeat(60),
+        bio: '旅行者',
       });
-      const errors = await validate(dto);
-      expect(errors.length).toBe(0);
+
+      const dto2 = new UpdateProfileDto();
+      dto2.nickname = '用户';
+      dto2.avatarUrl = 'https://example.com/avatar2.png';
+      dto2.bio = '旅行者';
+      await service.updateProfile(dto2);
+
+      const saved = mockRepo.save.mock.calls[mockRepo.save.mock.calls.length - 1][0];
+      expect(saved.avatarUrl).toBe('https://example.com/avatar2.png');
+      expect(saved.bio).toBe('旅行者');
     });
   });
 });
