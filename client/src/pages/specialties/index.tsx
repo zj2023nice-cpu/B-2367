@@ -20,6 +20,16 @@ interface QueryState {
 	regions: string[]
 }
 
+interface EditingState {
+	value: string
+}
+
+interface SavingState {
+	originalAddress: string
+	submittedValue: string
+	requestId: number
+}
+
 const REGIONS = ['北京', '天津', '云南', '浙江', '四川', '陕西', '湖南', '广东']
 const MAX_ADDRESS_LEN = 50
 const DEBOUNCE_MS = 400
@@ -30,10 +40,12 @@ export default function Specialties() {
 	const [list, setList] = useState<SpecialtyItem[]>([])
 	const [total, setTotal] = useState(0)
 	const [loading, setLoading] = useState(true)
-	const [editingId, setEditingId] = useState<number | null>(null)
-	const [editValue, setEditValue] = useState('')
+	const [editingMap, setEditingMap] = useState<Map<number, EditingState>>(new Map())
+	const [savingMap, setSavingMap] = useState<Map<number, SavingState>>(new Map())
 	const [searchText, setSearchText] = useState('')
 	const requestIdRef = useRef(0)
+	const saveRequestIdRef = useRef(0)
+	const savingIdRef = useRef<number | null>(null)
 	const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
 	useDidShow(() => {
@@ -101,40 +113,107 @@ export default function Specialties() {
 	}
 
 	const startEdit = (item: SpecialtyItem) => {
-		setEditingId(item.id)
-		setEditValue(item.address)
+		if (savingIdRef.current !== null) return
+		if (savingMap.has(item.id)) return
+		setEditingMap((prev) => {
+			const next = new Map(prev)
+			next.set(item.id, { value: item.address })
+			return next
+		})
 	}
 
-	const handleBlur = async () => {
-		if (editingId === null) return
-		const trimmed = editValue.trim()
+	const commitEdit = async (itemId: number) => {
+		const editing = editingMap.get(itemId)
+		if (!editing) return
+		const trimmed = editing.value.trim()
+
 		if (!trimmed) {
 			Taro.showToast({ title: '地址不能为空', icon: 'none' })
-			const original = list.find((i) => i.id === editingId)
-			if (original) setEditValue(original.address)
+			const original = list.find((i) => i.id === itemId)
+			if (original) {
+				setEditingMap((prev) => {
+					const next = new Map(prev)
+					next.set(itemId, { value: original.address })
+					return next
+				})
+			}
 			return
 		}
 		if (trimmed.length > MAX_ADDRESS_LEN) {
 			Taro.showToast({ title: `地址不超过${MAX_ADDRESS_LEN}字`, icon: 'none' })
 			return
 		}
-		const original = list.find((i) => i.id === editingId)
+		const original = list.find((i) => i.id === itemId)
 		if (original && trimmed === original.address) {
-			setEditingId(null)
+			setEditingMap((prev) => {
+				const next = new Map(prev)
+				next.delete(itemId)
+				return next
+			})
 			return
 		}
+
+		if (savingIdRef.current !== null) return
+
+		const currentRequestId = ++saveRequestIdRef.current
+		savingIdRef.current = itemId
+
+		const originalAddress = original ? original.address : ''
+		setSavingMap((prev) => {
+			const next = new Map(prev)
+			next.set(itemId, { originalAddress, submittedValue: trimmed, requestId: currentRequestId })
+			return next
+		})
+		setEditingMap((prev) => {
+			const next = new Map(prev)
+			next.delete(itemId)
+			return next
+		})
+
 		try {
-			await request(`/api/specialties/${editingId}/address`, {
+			const result = await request<SpecialtyItem>(`/api/specialties/${itemId}/address`, {
 				method: 'PUT',
 				data: { address: trimmed },
 			})
-			const oldAddress = original ? original.address : ''
-			invalidateCacheByAddresses([oldAddress, trimmed])
-			setList((prev) => prev.map((i) => (i.id === editingId ? { ...i, address: trimmed } : i)))
+
+			if (savingIdRef.current !== itemId || saveRequestIdRef.current !== currentRequestId) {
+				return
+			}
+
+			invalidateCacheByAddresses([originalAddress, trimmed])
+
+			const newAddress = result.address ?? trimmed
+			setList((prev) =>
+				prev.map((i) => (i.id === itemId ? { ...i, address: newAddress } : i)),
+			)
 		} catch {
+			if (savingIdRef.current !== itemId || saveRequestIdRef.current !== currentRequestId) {
+				return
+			}
+
 			Taro.showToast({ title: '保存失败', icon: 'none' })
+
+			setList((prev) =>
+				prev.map((i) => (i.id === itemId ? { ...i, address: originalAddress } : i)),
+			)
+			setEditingMap((prev) => {
+				const next = new Map(prev)
+				next.set(itemId, { value: trimmed })
+				return next
+			})
+		} finally {
+			if (savingIdRef.current === itemId) {
+				savingIdRef.current = null
+			}
+			setSavingMap((prev) => {
+				const next = new Map(prev)
+				const entry = next.get(itemId)
+				if (entry && entry.requestId === currentRequestId) {
+					next.delete(itemId)
+				}
+				return next
+			})
 		}
-		setEditingId(null)
 	}
 
 	const goToMap = (address: string) => {
@@ -176,37 +255,56 @@ export default function Specialties() {
 			) : (
 				<ScrollView scrollY className='specialty-list'>
 					<View className='specialty-list-inner'>
-						{list.map((item) => (
-							<View key={item.id} className='specialty-card'>
-								<Image className='specialty-img' src={resolveImageUrl(item.imageUrl)} mode='aspectFill' />
-								<View className='specialty-info'>
-									<Text className='specialty-title'>{item.title}</Text>
-									<Text className='specialty-desc'>{item.description}</Text>
-									<View className='specialty-footer'>
-										{editingId === item.id ? (
-											<Input
-												className='specialty-address-input'
-												value={editValue}
-												maxlength={MAX_ADDRESS_LEN}
-												focus
-												onInput={(e) => setEditValue(e.detail.value)}
-												onBlur={handleBlur}
-											/>
-										) : (
-											<Text className='specialty-address' onClick={() => startEdit(item)}>
-												📍 {item.address}
-											</Text>
-										)}
-										<Button
-											className='location-btn'
-											hoverClass='location-btn-hover'
-											onClick={() => goToMap(item.address)}>
-											位置
-										</Button>
+						{list.map((item) => {
+							const editing = editingMap.get(item.id)
+							const saving = savingMap.get(item.id)
+							const isEditing = !!editing
+							const isSaving = !!saving
+
+							return (
+								<View key={item.id} className='specialty-card'>
+									<Image className='specialty-img' src={resolveImageUrl(item.imageUrl)} mode='aspectFill' />
+									<View className='specialty-info'>
+										<Text className='specialty-title'>{item.title}</Text>
+										<Text className='specialty-desc'>{item.description}</Text>
+										<View className='specialty-footer'>
+											{isEditing ? (
+												<Input
+													className='specialty-address-input'
+													value={editing.value}
+													maxlength={MAX_ADDRESS_LEN}
+													focus
+													onInput={(e) =>
+														setEditingMap((prev) => {
+															const next = new Map(prev)
+															next.set(item.id, { value: e.detail.value })
+															return next
+														})
+													}
+													onBlur={() => commitEdit(item.id)}
+												/>
+											) : isSaving ? (
+												<View className='specialty-address-saving'>
+													<Text className='saving-indicator'>保存中...</Text>
+													<Text className='specialty-address-muted'>{saving.submittedValue}</Text>
+												</View>
+											) : (
+												<Text className='specialty-address' onClick={() => startEdit(item)}>
+													📍 {item.address}
+												</Text>
+											)}
+											<Button
+												className='location-btn'
+												hoverClass='location-btn-hover'
+												onClick={() => goToMap(item.address)}
+												disabled={isSaving}>
+												位置
+											</Button>
+										</View>
 									</View>
 								</View>
-							</View>
-						))}
+							)
+						})}
 						{hasMore && (
 							<View className='load-more-wrap'>
 								<Button className='load-more-btn' onClick={handleLoadMore} disabled={loading}>
