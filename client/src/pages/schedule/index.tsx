@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { View, ScrollView, Image, Text } from '@tarojs/components'
 import { useDidShow } from '@tarojs/taro'
 import { request } from '../../services/request'
 import { checkLoginGuard } from '../../utils/auth'
 import { resolveImageUrl } from '../../utils/common'
+import { sortScheduleList, type SortMode } from '../../utils/scheduleSort'
+import { useSortState } from '../../utils/useSortState'
 import './index.scss'
 
 interface ScheduleItem {
@@ -14,11 +16,17 @@ interface ScheduleItem {
 	dateText: string
 }
 
+const SORT_OPTIONS: { mode: SortMode; label: string }[] = [
+	{ mode: 'original', label: '录入顺序' },
+	{ mode: 'asc', label: '日期升序' },
+	{ mode: 'desc', label: '日期降序' },
+]
+
 export default function Schedule() {
 	const [list, setList] = useState<ScheduleItem[]>([])
 	const [loading, setLoading] = useState(true)
+	const { sortMode, setSortMode } = useSortState()
 
-	// 登录态守卫
 	useDidShow(() => {
 		checkLoginGuard()
 	})
@@ -27,7 +35,6 @@ export default function Schedule() {
 		fetchData()
 	}, [])
 
-	/** 获取日程列表 */
 	const fetchData = async () => {
 		setLoading(true)
 		try {
@@ -40,8 +47,23 @@ export default function Schedule() {
 		}
 	}
 
+	const sortedList = useMemo(() => {
+		return sortScheduleList(list, sortMode)
+	}, [list, sortMode])
+
 	return (
 		<View className='schedule-page'>
+			<View className='schedule-toolbar'>
+				{SORT_OPTIONS.map((opt) => (
+					<View
+						key={opt.mode}
+						className={`sort-btn ${sortMode === opt.mode ? 'sort-btn--active' : ''}`}
+						onClick={() => setSortMode(opt.mode)}
+					>
+						<Text>{opt.label}</Text>
+					</View>
+				))}
+			</View>
 			{loading ? (
 				<View className='loading-wrap'>
 					<Text>加载中...</Text>
@@ -49,11 +71,11 @@ export default function Schedule() {
 			) : (
 				<ScrollView scrollY className='schedule-list'>
 					<View className='schedule-list-inner'>
-						{list.map((item, index) => (
+						{sortedList.map((item, index) => (
 							<View key={item.id} className='schedule-card'>
 								<View className='schedule-timeline'>
 									<View className='timeline-dot' />
-									{index < list.length - 1 && <View className='timeline-line' />}
+									{index < sortedList.length - 1 && <View className='timeline-line' />}
 								</View>
 								<View className='schedule-content'>
 									<View className='schedule-date-tag'>{item.dateText}</View>

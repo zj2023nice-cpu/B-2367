@@ -1,6 +1,32 @@
 .schedule-page {
 	height: 100vh;
 	background: #f5f6fa;
+	display: flex;
+	flex-direction: column;
+}
+
+.schedule-toolbar {
+	display: flex;
+	justify-content: center;
+	gap: 16px;
+	padding: 20px 24px 0;
+	flex-shrink: 0;
+}
+
+.sort-btn {
+	padding: 10px 28px;
+	border-radius: 32px;
+	background: #fff;
+	font-size: 24px;
+	color: #666;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+	transition: all 0.2s;
+
+	&--active {
+		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		color: #fff;
+		box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+	}
 }
 
 .loading-wrap {
@@ -13,7 +39,8 @@
 }
 
 .schedule-list {
-	height: 100vh;
+	flex: 1;
+	height: 0;
 	box-sizing: border-box;
 }
 
