@@ -4,49 +4,20 @@ import Taro, { useRouter } from '@tarojs/taro'
 import markerIcon from '../../assets/tab-home-active.png'
 import { request } from '../../services/request'
 import { getFromCache, setToCache } from '../../utils/geocodeCache'
+import {
+	parseAddressesParam,
+	deduplicateAddresses,
+	splitCachedUncached,
+	mergeBatchResults,
+} from '../../utils/batchGeocodeResolve'
+import type { MarkerItem, FailedItem, BatchGeocodeItem } from '../../utils/batchGeocodeResolve'
 import './index.scss'
-
-function normalizeAddress(address: string): string {
-	return address.trim().replace(/\s+/g, ' ').toLowerCase()
-}
 
 interface GeocodeResult {
 	address: string
 	lat: number
 	lng: number
 	formattedAddress?: string
-}
-
-interface BatchGeocodeItem {
-	address: string
-	lat?: number
-	lng?: number
-	formattedAddress?: string
-	error?: string
-}
-
-interface MarkerItem {
-	id: number
-	address: string
-	lat: number
-	lng: number
-	formattedAddress: string
-}
-
-interface FailedItem {
-	address: string
-	error: string
-}
-
-function parseAddressesParam(raw: string): string[] | null {
-	if (!raw) return null
-	try {
-		const parsed = JSON.parse(decodeURIComponent(raw))
-		if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'string') {
-			return parsed.filter((s: string) => s && s.trim())
-		}
-	} catch {}
-	return null
 }
 
 export default function MapPage() {
@@ -132,32 +103,18 @@ export default function MapPage() {
 	const geocodeBatch = async () => {
 		setLoading(true)
 		try {
-			const seen = new Set<string>()
-			const uniqueAddresses: string[] = []
-			for (const addr of batchAddresses!) {
-				const norm = normalizeAddress(addr)
-				if (seen.has(norm)) continue
-				seen.add(norm)
-				uniqueAddresses.push(addr)
-			}
+			const uniqueAddresses = deduplicateAddresses(batchAddresses!)
 
-			const cachedMarkers: MarkerItem[] = []
-			const uncachedAddresses: string[] = []
-
-			for (const addr of uniqueAddresses) {
-				const cached = getFromCache(addr)
-				if (cached && Number.isFinite(cached.lat) && Number.isFinite(cached.lng)) {
-					cachedMarkers.push({
-						id: cachedMarkers.length + 1,
-						address: addr,
-						lat: cached.lat,
-						lng: cached.lng,
-						formattedAddress: cached.formattedAddress,
-					})
-				} else {
-					uncachedAddresses.push(addr)
-				}
-			}
+			const { cachedMarkers, uncachedAddresses } = splitCachedUncached(
+				uniqueAddresses,
+				(addr) => {
+					const cached = getFromCache(addr)
+					if (cached && Number.isFinite(cached.lat) && Number.isFinite(cached.lng)) {
+						return { lat: cached.lat, lng: cached.lng, formattedAddress: cached.formattedAddress }
+					}
+					return null
+				},
+			)
 
 			if (uncachedAddresses.length > 0) {
 				const results = await request<BatchGeocodeItem[]>('/api/map/geocode/batch', {
@@ -165,34 +122,20 @@ export default function MapPage() {
 					data: { addresses: uncachedAddresses },
 				})
 
-				const newMarkers: MarkerItem[] = []
-				const newFailed: FailedItem[] = []
+				const { markers, failedList } = mergeBatchResults(cachedMarkers, results)
 
 				for (const item of results) {
 					if (item.lat != null && item.lng != null && Number.isFinite(item.lat) && Number.isFinite(item.lng)) {
-						const marker: MarkerItem = {
-							id: cachedMarkers.length + newMarkers.length + 1,
-							address: item.address,
-							lat: item.lat,
-							lng: item.lng,
-							formattedAddress: item.formattedAddress || item.address,
-						}
-						newMarkers.push(marker)
 						setToCache(item.address, {
 							formattedAddress: item.formattedAddress || '',
 							lat: item.lat,
 							lng: item.lng,
 						})
-					} else {
-						newFailed.push({
-							address: item.address,
-							error: item.error || '未找到该地址',
-						})
 					}
 				}
 
-				setMarkers([...cachedMarkers, ...newMarkers])
-				setFailedList(newFailed)
+				setMarkers(markers)
+				setFailedList(failedList)
 			} else {
 				setMarkers(cachedMarkers)
 				setFailedList([])
