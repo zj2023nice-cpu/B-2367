@@ -7,7 +7,7 @@ import { UserProfile } from '../user/user-profile.entity';
 const logger = new Logger('SeedData');
 
 const DEFAULT_SCHEDULES: Array<
-  Pick<Schedule, 'title' | 'description' | 'imageUrl' | 'dateText'>
+  Pick<Schedule, 'title' | 'description' | 'imageUrl' | 'dateText' | 'completed' | 'completedAt'>
 > = [
   {
     title: '北京南锣鼓巷美食探店',
@@ -15,6 +15,8 @@ const DEFAULT_SCHEDULES: Array<
       '2026 年春季美食行第一站，上午走访南锣鼓巷与后海片区，记录北京烤鸭门店排队情况和游客试吃反馈。',
     imageUrl: '/images/duck.jpg',
     dateText: '2026年04月18日 · 周六',
+    completed: false,
+    completedAt: null,
   },
   {
     title: '天津十八街麻花制作参观',
@@ -22,6 +24,8 @@ const DEFAULT_SCHEDULES: Array<
       '到十八街老字号门店了解麻花制作流程，补充门店营业时间、礼盒规格和现场试吃记录。',
     imageUrl: '/images/mahua.jpg',
     dateText: '2026年04月19日 · 周日',
+    completed: false,
+    completedAt: null,
   },
   {
     title: '杭州龙井村采茶体验',
@@ -29,6 +33,8 @@ const DEFAULT_SCHEDULES: Array<
       '上午前往龙井村茶园，拍摄采茶和炒茶过程，整理龙井茶口感笔记与游客体验事件记录。',
     imageUrl: '/images/tea.jpg',
     dateText: '2026年04月25日 · 周六',
+    completed: false,
+    completedAt: null,
   },
   {
     title: '成都宽窄巷子火锅底料选品',
@@ -36,6 +42,8 @@ const DEFAULT_SCHEDULES: Array<
       '下午在宽窄巷子周边门店对比火锅底料口味，记录麻辣度、配料差异以及门店推荐榜。',
     imageUrl: '/images/hotpot.jpg',
     dateText: '2026年05月01日 · 周五',
+    completed: false,
+    completedAt: null,
   },
   {
     title: '西安回民街夜市巡游',
@@ -43,6 +51,8 @@ const DEFAULT_SCHEDULES: Array<
       '傍晚走访回民街小吃摊位，重点记录肉夹馍、冰峰和夜市高峰时段的人流及消费情况。',
     imageUrl: '/images/roujiamo.jpg',
     dateText: '2026年05月02日 · 周六',
+    completed: false,
+    completedAt: null,
   },
   {
     title: '长沙坡子街小吃打卡',
@@ -50,6 +60,8 @@ const DEFAULT_SCHEDULES: Array<
       '晚间打卡坡子街臭豆腐热门摊位，整理试吃评分、排队时长和游客互动照片清单。',
     imageUrl: '/images/tofu.jpg',
     dateText: '2026年05月03日 · 周日',
+    completed: false,
+    completedAt: null,
   },
   {
     title: '广州早茶门店探访',
@@ -57,6 +69,8 @@ const DEFAULT_SCHEDULES: Array<
       '早晨前往荔湾区老字号茶楼，补齐肠粉与点心图文素材，记录上菜节奏和招牌菜推荐。',
     imageUrl: '/images/changfen.jpg',
     dateText: '2026年05月04日 · 周一',
+    completed: false,
+    completedAt: null,
   },
 ];
 
@@ -185,6 +199,19 @@ export async function seedDatabase(dataSource: DataSource): Promise<void> {
     await scheduleRepo.clear();
     await scheduleRepo.save(DEFAULT_SCHEDULES);
     logger.log('日程默认数据修复完成');
+  } else {
+    const needFix = schedules.filter(
+      (s) => s.completed === null || s.completed === undefined,
+    );
+    if (needFix.length > 0) {
+      logger.log(`修复 ${needFix.length} 条旧日程的 completed 字段...`);
+      for (const s of needFix) {
+        s.completed = false;
+        s.completedAt = null;
+      }
+      await scheduleRepo.save(needFix);
+      logger.log('旧日程 completed 字段修复完成');
+    }
   }
 
   // === 用户资料 Seed ===

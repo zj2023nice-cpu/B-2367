@@ -6,7 +6,6 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-/** 日程实体 */
 @Entity('schedules')
 export class Schedule {
   @PrimaryGeneratedColumn()
@@ -23,6 +22,12 @@ export class Schedule {
 
   @Column({ name: 'date_text', type: 'text' })
   dateText: string;
+
+  @Column({ name: 'completed', type: 'boolean', default: false })
+  completed: boolean;
+
+  @Column({ name: 'completed_at', type: 'datetime', nullable: true, default: null })
+  completedAt: Date | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

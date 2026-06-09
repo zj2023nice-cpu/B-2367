@@ -24,6 +24,7 @@ export interface OverviewResult {
   specialtyCount: number;
   regionCount: number;
   scheduleCount: number;
+  completedScheduleCount: number;
   latestSchedule: OverviewLatestSchedule | null;
   defaultNickname: string;
   recentSpecialties: OverviewRecentSpecialty[];
@@ -49,6 +50,7 @@ export class OverviewService {
       specialtyCount,
       addressRows,
       scheduleCount,
+      completedScheduleCount,
       scheduleRows,
       defaultProfile,
     ] = await Promise.all([
@@ -58,6 +60,7 @@ export class OverviewService {
         .select('s.address', 'address')
         .getRawMany(),
       this.scheduleRepo.count(),
+      this.scheduleRepo.count({ where: { completed: true } }),
       this.scheduleRepo
         .createQueryBuilder('sc')
         .select(['sc.id', 'sc.title', 'sc.dateText'])
@@ -77,6 +80,7 @@ export class OverviewService {
       specialtyCount,
       regionCount,
       scheduleCount,
+      completedScheduleCount,
       latestSchedule,
       defaultNickname: defaultProfile?.nickname ?? '游客',
       recentSpecialties: [],

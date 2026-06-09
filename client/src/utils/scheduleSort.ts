@@ -5,6 +5,7 @@ export type SortMode = 'asc' | 'desc' | 'original'
 export interface SortableItem {
 	id: number | string
 	dateText: string
+	completed?: boolean
 	[key: string]: unknown
 }
 
@@ -18,26 +19,37 @@ export function sortScheduleList<T extends SortableItem>(
 	list: T[],
 	mode: SortMode
 ): T[] {
-	if (mode === 'original' || list.length <= 1) {
+	if (list.length <= 1) {
 		return [...list]
 	}
 
-	const indexed: IndexedItem<T>[] = list.map((item, i) => ({
-		original: item,
-		originalIndex: i,
-		parsed: parseDateText(item.dateText),
-	}))
+	const pending = list.filter((item) => !item.completed)
+	const completed = list.filter((item) => item.completed)
 
-	const parsed = indexed.filter((x) => x.parsed.valid)
-	const unparsed = indexed.filter((x) => !x.parsed.valid)
+	function sortByDate<T extends SortableItem>(items: T[], sortMode: SortMode): T[] {
+		if (sortMode === 'original' || items.length <= 1) {
+			return [...items]
+		}
 
-	parsed.sort((a, b) => {
-		const ta = a.parsed.date!.getTime()
-		const tb = b.parsed.date!.getTime()
-		return mode === 'asc' ? ta - tb : tb - ta
-	})
+		const indexed: IndexedItem<T>[] = items.map((item, i) => ({
+			original: item,
+			originalIndex: i,
+			parsed: parseDateText(item.dateText),
+		}))
 
-	return [...parsed, ...unparsed].map((x) => x.original)
+		const parsed = indexed.filter((x) => x.parsed.valid)
+		const unparsed = indexed.filter((x) => !x.parsed.valid)
+
+		parsed.sort((a, b) => {
+			const ta = a.parsed.date!.getTime()
+			const tb = b.parsed.date!.getTime()
+			return sortMode === 'asc' ? ta - tb : tb - ta
+		})
+
+		return [...parsed, ...unparsed].map((x) => x.original)
+	}
+
+	return [...sortByDate(pending, mode), ...sortByDate(completed, mode)]
 }
 
 export function groupByMonth<T extends SortableItem>(list: T[]): Map<string, T[]> {
