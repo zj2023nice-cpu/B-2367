@@ -61,8 +61,17 @@ export class OverviewService {
     { key: 'user', label: '我的', icon: '👤', path: '/pages/user/index' },
   ];
 
-  async getOverview(): Promise<OverviewResult> {
+  async getOverview(visitedIds: number[] = []): Promise<OverviewResult> {
     this.logger.log('获取首页总览数据');
+
+    const recentSpecialtiesPromise =
+      visitedIds.length > 0
+        ? this.specialtyRepo
+            .createQueryBuilder('s')
+            .select(['s.id', 's.title', 's.imageUrl', 's.address'])
+            .where('s.id IN (:...ids)', { ids: visitedIds })
+            .getMany()
+        : Promise.resolve([]);
 
     const [
       specialtyCountResult,
@@ -84,12 +93,7 @@ export class OverviewService {
         .orderBy('sc.id', 'DESC')
         .getMany(),
       this.userProfileRepo.findOne({ where: { key: 'default' } }),
-      this.specialtyRepo
-        .createQueryBuilder('s')
-        .select(['s.id', 's.title', 's.imageUrl', 's.address'])
-        .orderBy('s.updatedAt', 'DESC')
-        .limit(4)
-        .getMany(),
+      recentSpecialtiesPromise,
     ]);
 
     const specialtyCount =
@@ -118,14 +122,18 @@ export class OverviewService {
       recentSpecialtiesResult.status === 'fulfilled'
         ? recentSpecialtiesResult.value
         : [];
-    const recentSpecialties: OverviewRecentSpecialty[] = recentRows.map(
-      (r: Pick<Specialty, 'id' | 'title' | 'imageUrl' | 'address'>) => ({
+    const recentById = new Map<number, OverviewRecentSpecialty>();
+    for (const r of recentRows as Pick<Specialty, 'id' | 'title' | 'imageUrl' | 'address'>[]) {
+      recentById.set(r.id, {
         id: r.id,
         title: r.title,
         imageUrl: r.imageUrl,
         address: r.address,
-      }),
-    );
+      });
+    }
+    const recentSpecialties: OverviewRecentSpecialty[] = visitedIds
+      .filter((id) => recentById.has(id))
+      .map((id) => recentById.get(id)!);
 
     return {
       defaultNickname: defaultProfile?.nickname ?? '游客',

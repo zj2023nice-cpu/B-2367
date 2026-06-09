@@ -7,6 +7,7 @@ import { checkLoginGuard } from '../../utils/auth'
 import { request } from '../../services/request'
 import { resolveImageUrl } from '../../utils/common'
 import { parseDateText } from '../../utils/dateParser'
+import { getRecentlyVisited } from '../../utils/favoriteStore'
 import './index.scss'
 
 interface OverviewLatestSchedule {
@@ -58,7 +59,9 @@ export default function Home() {
 	const fetchOverview = useCallback(async () => {
 		setLoading(true)
 		try {
-			const data = await request<OverviewData>('/api/overview')
+			const visited = getRecentlyVisited(4)
+			const idsParam = visited.length > 0 ? `?visitedIds=${visited.map((r) => r.id).join(',')}` : ''
+			const data = await request<OverviewData>(`/api/overview${idsParam}`)
 			setOverview(data)
 		} catch {
 			setOverview(null)
