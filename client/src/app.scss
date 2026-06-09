@@ -1,0 +1,21 @@
+/* 全局样式 */
+page {
+	height: 100%;
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+	font-size: 28px;
+	color: #333;
+	background-color: #f5f6fa;
+}
+
+/* 清除 button 默认样式 */
+button {
+	padding: 0;
+	margin: 0;
+	background: none;
+	border: none;
+	line-height: inherit;
+}
+
+button::after {
+	border: none;
+}

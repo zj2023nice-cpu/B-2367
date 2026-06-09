@@ -1,0 +1,127 @@
+.user-page {
+	min-height: 100vh;
+	background: #f5f6fa;
+}
+
+.user-header {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 60px 40px 40px;
+	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	border-radius: 0 0 40px 40px;
+}
+
+.avatar-wrap {
+	position: relative;
+	margin-bottom: 24px;
+}
+
+.avatar-img {
+	width: 160px;
+	height: 160px;
+	border-radius: 50%;
+	border: 6px solid rgba(255, 255, 255, 0.4);
+}
+
+.avatar-placeholder {
+	width: 160px;
+	height: 160px;
+	border-radius: 50%;
+	background: rgba(255, 255, 255, 0.2);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 80px;
+	border: 6px solid rgba(255, 255, 255, 0.4);
+}
+
+.avatar-edit-tip {
+	text-align: center;
+	font-size: 22px;
+	color: rgba(255, 255, 255, 0.7);
+	margin-top: 8px;
+}
+
+.user-name-wrap {
+	width: 100%;
+}
+
+.name-row {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.nickname-text {
+	font-size: 40px;
+	font-weight: bold;
+	color: #fff;
+	margin-right: 12px;
+}
+
+.edit-icon {
+	font-size: 28px;
+}
+
+.edit-row {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.nickname-input {
+	flex: 1;
+	height: 72px;
+	background: rgba(255, 255, 255, 0.9);
+	border-radius: 12px;
+	padding: 0 20px;
+	font-size: 28px;
+	color: #333;
+}
+
+.save-btn {
+	min-width: 100px !important;
+	height: 72px !important;
+	line-height: 72px !important;
+	font-size: 26px !important;
+	color: #667eea !important;
+	background: #fff !important;
+	border-radius: 12px !important;
+	margin-left: 16px !important;
+	padding: 0 24px !important;
+}
+
+.save-btn-hover {
+	opacity: 0.85;
+}
+
+.cancel-btn {
+	min-width: 80px !important;
+	height: 72px !important;
+	line-height: 72px !important;
+	font-size: 26px !important;
+	color: rgba(255, 255, 255, 0.8) !important;
+	background: transparent !important;
+	margin-left: 8px !important;
+	padding: 0 16px !important;
+}
+
+.user-actions {
+	padding: 60px 40px;
+}
+
+.logout-btn {
+	width: 100% !important;
+	height: 96px !important;
+	line-height: 96px !important;
+	font-size: 32px !important;
+	color: #ff4d4f !important;
+	background: #fff !important;
+	border-radius: 16px !important;
+	border: 2px solid #ff4d4f !important;
+}
+
+.logout-btn-hover {
+	background: #fff1f0 !important;
+}

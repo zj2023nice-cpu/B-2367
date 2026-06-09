@@ -1,0 +1,53 @@
+export default defineAppConfig({
+	pages: [
+		'pages/login/index',
+		'pages/home/index',
+		'pages/specialties/index',
+		'pages/schedule/index',
+		'pages/user/index',
+		'pages/map/index',
+	],
+	tabBar: {
+		color: '#999999',
+		selectedColor: '#1890ff',
+		backgroundColor: '#ffffff',
+		borderStyle: 'black',
+		list: [
+			{
+				pagePath: 'pages/home/index',
+				text: '主页',
+				iconPath: 'assets/tab-home.png',
+				selectedIconPath: 'assets/tab-home-active.png',
+			},
+			{
+				pagePath: 'pages/specialties/index',
+				text: '特产',
+				iconPath: 'assets/tab-specialties.png',
+				selectedIconPath: 'assets/tab-specialties-active.png',
+			},
+			{
+				pagePath: 'pages/schedule/index',
+				text: '日程',
+				iconPath: 'assets/tab-schedule.png',
+				selectedIconPath: 'assets/tab-schedule-active.png',
+			},
+			{
+				pagePath: 'pages/user/index',
+				text: '用户',
+				iconPath: 'assets/tab-user.png',
+				selectedIconPath: 'assets/tab-user-active.png',
+			},
+		],
+	},
+	permission: {
+		'scope.userLocation': {
+			desc: '用于在地图页展示你的位置',
+		},
+	},
+	window: {
+		backgroundTextStyle: 'light',
+		navigationBarBackgroundColor: '#1890ff',
+		navigationBarTitleText: '特产日程',
+		navigationBarTextStyle: 'white',
+	},
+})
