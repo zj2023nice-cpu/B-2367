@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { View, ScrollView, Image, Text, Button, Input } from '@tarojs/components'
 import Taro, { useDidShow } from '@tarojs/taro'
 import { request } from '../../services/request'
@@ -15,42 +15,53 @@ interface SpecialtyItem {
 }
 
 const MAX_ADDRESS_LEN = 50
+const DEBOUNCE_MS = 400
 
 export default function Specialties() {
 	const [list, setList] = useState<SpecialtyItem[]>([])
 	const [loading, setLoading] = useState(true)
 	const [editingId, setEditingId] = useState<number | null>(null)
 	const [editValue, setEditValue] = useState('')
+	const [keyword, setKeyword] = useState('')
+	const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-	// 登录态守卫
 	useDidShow(() => {
 		checkLoginGuard()
 	})
 
-	useEffect(() => {
-		fetchData()
-	}, [])
-
-	/** 获取特产列表 */
-	const fetchData = async () => {
+	const fetchData = useCallback(async (kw: string) => {
 		setLoading(true)
 		try {
-			const data = await request<SpecialtyItem[]>('/api/specialties')
+			const params = new URLSearchParams()
+			if (kw) params.set('keyword', kw)
+			const qs = params.toString()
+			const url = `/api/specialties${qs ? `?${qs}` : ''}`
+			const data = await request<SpecialtyItem[]>(url)
 			setList(data || [])
 		} catch (err) {
 			console.error('获取特产列表失败', err)
 		} finally {
 			setLoading(false)
 		}
+	}, [])
+
+	useEffect(() => {
+		fetchData(keyword)
+	}, [keyword, fetchData])
+
+	const handleSearchInput = (e: { detail: { value: string } }) => {
+		const val = e.detail.value
+		if (timerRef.current) clearTimeout(timerRef.current)
+		timerRef.current = setTimeout(() => {
+			setKeyword(val)
+		}, DEBOUNCE_MS)
 	}
 
-	/** 点击地址进入编辑 */
 	const startEdit = (item: SpecialtyItem) => {
 		setEditingId(item.id)
 		setEditValue(item.address)
 	}
 
-	/** 失焦自动保存 */
 	const handleBlur = async () => {
 		if (editingId === null) return
 		const trimmed = editValue.trim()
@@ -81,7 +92,6 @@ export default function Specialties() {
 		setEditingId(null)
 	}
 
-	/** 点击"位置"跳转地图页 */
 	const goToMap = (address: string) => {
 		Taro.navigateTo({
 			url: `/pages/map/index?address=${encodeURIComponent(address)}`,
@@ -90,6 +100,13 @@ export default function Specialties() {
 
 	return (
 		<View className='specialties-page'>
+			<View className='search-bar'>
+				<Input
+					className='search-input'
+					placeholder='搜索特产名称或地址'
+					onInput={handleSearchInput}
+				/>
+			</View>
 			{loading ? (
 				<View className='loading-wrap'>
 					<Text>加载中...</Text>

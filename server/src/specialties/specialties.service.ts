@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Specialty } from './specialty.entity';
+import { QuerySpecialtyDto } from './dto/query-specialty.dto';
 
 @Injectable()
 export class SpecialtiesService {
@@ -12,10 +13,23 @@ export class SpecialtiesService {
     private readonly repo: Repository<Specialty>,
   ) {}
 
-  /** 获取全部特产列表 */
-  async findAll(): Promise<Specialty[]> {
+  async findAll(query: QuerySpecialtyDto): Promise<Specialty[]> {
     this.logger.log('查询特产列表');
-    return this.repo.find({ order: { id: 'ASC' } });
+    const qb = this.repo.createQueryBuilder('s').orderBy('s.id', 'ASC');
+
+    const keyword = query.keyword?.trim();
+    if (keyword) {
+      qb.andWhere(
+        '(s.title LIKE :kw OR s.address LIKE :kw)',
+        { kw: `%${keyword}%` },
+      );
+    }
+
+    if (query.limit) {
+      qb.take(query.limit);
+    }
+
+    return qb.getMany();
   }
 
   /** 更新特产地址 */
