@@ -1,10 +1,16 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { View, ScrollView, Image, Text, Button, Input } from '@tarojs/components'
 import Taro, { useDidShow } from '@tarojs/taro'
 import { request } from '../../services/request'
 import { checkLoginGuard } from '../../utils/auth'
 import { resolveImageUrl } from '../../utils/common'
 import { invalidateCacheByAddresses } from '../../utils/geocodeCache'
+import {
+	toggleFavorite as toggleFavoriteStore,
+	getFavoriteIds as loadFavoriteIds,
+	getFavoriteCount,
+	recordVisit,
+} from '../../utils/favoriteStore'
 import './index.scss'
 
 interface SpecialtyItem {
@@ -30,6 +36,8 @@ interface SavingState {
 	requestId: number
 }
 
+type ViewMode = 'all' | 'favorites'
+
 const REGIONS = ['北京', '天津', '云南', '浙江', '四川', '陕西', '湖南', '广东']
 const MAX_ADDRESS_LEN = 50
 const DEBOUNCE_MS = 400
@@ -37,6 +45,9 @@ const PAGE_SIZE = 10
 
 export default function Specialties() {
 	const [filters, setFilters] = useState<QueryState>({ keyword: '', regions: [] })
+	const [viewMode, setViewMode] = useState<ViewMode>('all')
+	const [favoriteIds, setFavoriteIds] = useState<Set<number>>(new Set())
+	const [favCount, setFavCount] = useState(0)
 	const [list, setList] = useState<SpecialtyItem[]>([])
 	const [total, setTotal] = useState(0)
 	const [loading, setLoading] = useState(true)
@@ -48,8 +59,14 @@ export default function Specialties() {
 	const savingIdRef = useRef<number | null>(null)
 	const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+	const refreshFavoriteState = useCallback(() => {
+		setFavoriteIds(loadFavoriteIds())
+		setFavCount(getFavoriteCount())
+	}, [])
+
 	useDidShow(() => {
 		checkLoginGuard()
+		refreshFavoriteState()
 	})
 
 	const fetchPage = useCallback(
@@ -61,8 +78,10 @@ export default function Specialties() {
 				const kw = filters.keyword.trim().replace(/\s+/g, ' ')
 				if (kw) params.set('keyword', kw)
 				if (filters.regions.length) params.set('region', filters.regions.join(','))
-				params.set('limit', String(PAGE_SIZE))
-				if (offset > 0) params.set('offset', String(offset))
+				if (viewMode === 'all') {
+					params.set('limit', String(PAGE_SIZE))
+					if (offset > 0) params.set('offset', String(offset))
+				}
 				const qs = params.toString()
 				const url = `/api/specialties${qs ? `?${qs}` : ''}`
 				const result = await request<{ list: SpecialtyItem[]; total: number }>(url)
@@ -79,12 +98,19 @@ export default function Specialties() {
 				if (requestIdRef.current === rid) setLoading(false)
 			}
 		},
-		[filters],
+		[filters, viewMode],
 	)
 
 	useEffect(() => {
 		fetchPage(0, false)
 	}, [fetchPage])
+
+	const displayList = useMemo(() => {
+		if (viewMode === 'favorites') {
+			return list.filter((item) => favoriteIds.has(item.id))
+		}
+		return list
+	}, [list, viewMode, favoriteIds])
 
 	const handleSearchInput = (e: { detail: { value: string } }) => {
 		const val = e.detail.value
@@ -106,8 +132,18 @@ export default function Specialties() {
 		}))
 	}
 
+	const switchViewMode = (mode: ViewMode) => {
+		if (mode === viewMode) return
+		setViewMode(mode)
+	}
+
+	const handleToggleFavorite = (id: number) => {
+		toggleFavoriteStore(id)
+		refreshFavoriteState()
+	}
+
 	const handleLoadMore = () => {
-		if (!loading && list.length < total) {
+		if (viewMode === 'all' && !loading && list.length < total) {
 			fetchPage(list.length, true)
 		}
 	}
@@ -216,13 +252,14 @@ export default function Specialties() {
 		}
 	}
 
-	const goToMap = (address: string) => {
+	const goToMap = (id: number, address: string) => {
+		recordVisit(id)
 		Taro.navigateTo({
 			url: `/pages/map/index?address=${encodeURIComponent(address)}`,
 		})
 	}
 
-	const hasMore = list.length < total
+	const hasMore = viewMode === 'all' && list.length < total
 
 	return (
 		<View className='specialties-page'>
@@ -244,28 +281,58 @@ export default function Specialties() {
 					</View>
 				</ScrollView>
 			</View>
-			{loading && list.length === 0 ? (
+			<View className='view-mode-bar'>
+				<View
+					className={`view-mode-tab ${viewMode === 'all' ? 'view-mode-tab-active' : ''}`}
+					onClick={() => switchViewMode('all')}
+				>
+					<Text>全部</Text>
+				</View>
+				<View
+					className={`view-mode-tab ${viewMode === 'favorites' ? 'view-mode-tab-active' : ''}`}
+					onClick={() => switchViewMode('favorites')}
+				>
+					<Text>已收藏</Text>
+					{favCount > 0 && (
+						<View className='fav-badge'>
+							<Text className='fav-badge-text'>{favCount > 99 ? '99+' : favCount}</Text>
+						</View>
+					)}
+				</View>
+			</View>
+			{loading && displayList.length === 0 ? (
 				<View className='loading-wrap'>
 					<Text>加载中...</Text>
 				</View>
-			) : list.length === 0 ? (
+			) : displayList.length === 0 ? (
 				<View className='empty-wrap'>
-					<Text>暂无匹配的特产</Text>
+					<Text>{viewMode === 'favorites' ? '暂无收藏的特产' : '暂无匹配的特产'}</Text>
 				</View>
 			) : (
 				<ScrollView scrollY className='specialty-list'>
 					<View className='specialty-list-inner'>
-						{list.map((item) => {
+						{displayList.map((item) => {
 							const editing = editingMap.get(item.id)
 							const saving = savingMap.get(item.id)
 							const isEditing = !!editing
 							const isSaving = !!saving
+							const isFav = favoriteIds.has(item.id)
 
 							return (
 								<View key={item.id} className='specialty-card'>
-									<Image className='specialty-img' src={resolveImageUrl(item.imageUrl)} mode='aspectFill' />
+									<View className='specialty-img-wrap'>
+										<Image className='specialty-img' src={resolveImageUrl(item.imageUrl)} mode='aspectFill' />
+										<View
+											className={`fav-btn ${isFav ? 'fav-btn-active' : ''}`}
+											onClick={() => handleToggleFavorite(item.id)}
+										>
+											<Text className='fav-btn-icon'>{isFav ? '❤' : '♡'}</Text>
+										</View>
+									</View>
 									<View className='specialty-info'>
-										<Text className='specialty-title'>{item.title}</Text>
+										<View className='specialty-title-row'>
+											<Text className='specialty-title'>{item.title}</Text>
+										</View>
 										<Text className='specialty-desc'>{item.description}</Text>
 										<View className='specialty-footer'>
 											{isEditing ? (
@@ -296,7 +363,7 @@ export default function Specialties() {
 											<Button
 												className='location-btn'
 												hoverClass='location-btn-hover'
-												onClick={() => goToMap(item.address)}
+												onClick={() => goToMap(item.id, item.address)}
 												disabled={isSaving}>
 												位置
 											</Button>
