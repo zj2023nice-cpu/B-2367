@@ -259,6 +259,27 @@ export default function Specialties() {
 		})
 	}
 
+	const goToMapAll = () => {
+		const addresses = displayList.map((item) => item.address).filter(Boolean)
+		if (addresses.length === 0) {
+			Taro.showToast({ title: '暂无地址可查看', icon: 'none' })
+			return
+		}
+		if (addresses.length === 1) {
+			const item = displayList.find((i) => i.address)
+			if (item) {
+				recordVisit(item.id)
+				Taro.navigateTo({
+					url: `/pages/map/index?address=${encodeURIComponent(item.address)}`,
+				})
+			}
+			return
+		}
+		Taro.navigateTo({
+			url: `/pages/map/index?addresses=${encodeURIComponent(JSON.stringify(addresses))}`,
+		})
+	}
+
 	const hasMore = viewMode === 'all' && list.length < total
 
 	return (
@@ -300,6 +321,13 @@ export default function Specialties() {
 					)}
 				</View>
 			</View>
+			{displayList.length > 1 && (
+				<View className='map-all-bar'>
+					<Button className='map-all-btn' hoverClass='map-all-btn-hover' onClick={goToMapAll}>
+						📍 查看全部位置
+					</Button>
+				</View>
+			)}
 			{loading && displayList.length === 0 ? (
 				<View className='loading-wrap'>
 					<Text>加载中...</Text>

@@ -26,6 +26,14 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
+export interface BatchGeocodeItem {
+  address: string;
+  lat?: number;
+  lng?: number;
+  formattedAddress?: string;
+  error?: string;
+}
+
 @Injectable()
 export class MapService {
   private readonly logger = new Logger(MapService.name);
@@ -36,6 +44,72 @@ export class MapService {
     if (!this.apiKey || this.apiKey === 'YOUR_KEY_HERE') {
       this.logger.warn('腾讯地图 Key 未配置，geocode 接口将无法正常工作');
     }
+  }
+
+  private normalizeAddress(address: string): string {
+    return address.trim().replace(/\s+/g, ' ').toLowerCase();
+  }
+
+  async batchGeocode(addresses: string[], concurrency = 4): Promise<BatchGeocodeItem[]> {
+    if (!addresses || addresses.length === 0) {
+      throw new HttpException('地址列表不能为空', HttpStatus.BAD_REQUEST);
+    }
+
+    const uniqueMap = new Map<string, string>();
+    const order: string[] = [];
+
+    for (const addr of addresses) {
+      const trimmed = (addr || '').trim();
+      if (!trimmed) continue;
+      const norm = this.normalizeAddress(trimmed);
+      if (!uniqueMap.has(norm)) {
+        uniqueMap.set(norm, trimmed);
+        order.push(norm);
+      }
+    }
+
+    if (order.length === 0) {
+      throw new HttpException('地址列表不能为空', HttpStatus.BAD_REQUEST);
+    }
+
+    const resultMap = new Map<string, BatchGeocodeItem>();
+
+    const queue = [...order];
+    const worker = async () => {
+      while (queue.length > 0) {
+        const norm = queue.shift();
+        if (!norm) break;
+        const original = uniqueMap.get(norm)!;
+        try {
+          const res = await this.geocode(original);
+          resultMap.set(norm, {
+            address: original,
+            lat: res.lat,
+            lng: res.lng,
+            formattedAddress: res.formattedAddress,
+          });
+        } catch (err) {
+          const msg =
+            err instanceof HttpException
+              ? err.message
+              : '地址解析失败';
+          resultMap.set(norm, { address: original, error: msg });
+        }
+      }
+    };
+
+    const workers = Array.from(
+      { length: Math.min(concurrency, order.length) },
+      () => worker(),
+    );
+    await Promise.all(workers);
+
+    const results: BatchGeocodeItem[] = [];
+    for (const norm of order) {
+      const item = resultMap.get(norm);
+      if (item) results.push(item);
+    }
+    return results;
   }
 
   /** 调用腾讯位置服务将地址转为经纬度 */
