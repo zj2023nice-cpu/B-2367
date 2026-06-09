@@ -6,6 +6,25 @@ import { checkLoginGuard, clearLogin } from '../../utils/auth'
 import { resolveImageUrl } from '../../utils/common'
 import './index.scss'
 
+const EMOJI_ONLY_RE = /^[\p{Emoji_Presentation}\p{Extended_Pictographic}\s]*$/u
+
+function sanitizeNickname(raw: string): string {
+	const trimmed = raw.trim()
+	return trimmed.replace(/\s+/g, ' ')
+}
+
+function validateNickname(raw: string): string | null {
+	const sanitized = sanitizeNickname(raw)
+	if (sanitized.length < 2) return '昵称至少2个字符'
+	if (sanitized.length > 12) return '昵称最多12个字符'
+	if (EMOJI_ONLY_RE.test(sanitized)) return '昵称不能只由表情或空白组成'
+	return null
+}
+
+function isWxfilePreview(url: string): boolean {
+	return /^wxfile:\/\//i.test(url)
+}
+
 export default function User() {
 	const [nickname, setNickname] = useState('')
 	const [avatarUrl, setAvatarUrl] = useState('')
@@ -15,13 +34,11 @@ export default function User() {
 	const [updatingAvatar, setUpdatingAvatar] = useState(false)
 	const pauseProfileSyncRef = useRef(false)
 
-	// 登录态守卫
 	useDidShow(() => {
 		checkLoginGuard()
 		fetchProfile()
 	})
 
-	/** 获取用户资料 */
 	const fetchProfile = async () => {
 		try {
 			const data = await request<{ nickname: string; avatarUrl: string }>('/api/user/profile')
@@ -34,7 +51,6 @@ export default function User() {
 		}
 	}
 
-	/** 选择头像 */
 	const chooseAvatar = async () => {
 		if (updatingAvatar) return
 
@@ -49,20 +65,31 @@ export default function User() {
 			})
 			if (res.tempFilePaths?.[0]) {
 				const tempPath = res.tempFilePaths[0]
-				const safeNickname = nickname.trim() || '游客'
+				const safeNickname = sanitizeNickname(nickname) || '游客'
 
-				// 选择头像回到页面时会触发 useDidShow，先暂停资料同步，避免旧数据把预览覆盖掉。
+				if (safeNickname.length < 2 || safeNickname.length > 12 || EMOJI_ONLY_RE.test(safeNickname)) {
+					Taro.showToast({ title: '请先设置合法昵称', icon: 'none' })
+					return
+				}
+
 				pauseProfileSyncRef.current = true
 				setAvatarUrl(tempPath)
 				previewApplied = true
 
+				const payloadAvatarUrl = isWxfilePreview(tempPath) ? '' : tempPath
+
 				await request('/api/user/profile', {
 					method: 'PUT',
-					data: { nickname: safeNickname, avatarUrl: tempPath },
+					data: { nickname: safeNickname, avatarUrl: payloadAvatarUrl },
 				})
 
 				setNickname(safeNickname)
-				Taro.showToast({ title: '头像已更新', icon: 'success' })
+
+				if (isWxfilePreview(tempPath)) {
+					Taro.showToast({ title: '头像预览已保存，正式头像需上传至服务器', icon: 'none' })
+				} else {
+					Taro.showToast({ title: '头像已更新', icon: 'success' })
+				}
 			}
 		} catch (err: any) {
 			if (err.errMsg && err.errMsg.indexOf('cancel') !== -1) return
@@ -77,25 +104,27 @@ export default function User() {
 		}
 	}
 
-	/** 开始编辑昵称 */
 	const startEdit = () => {
 		setTempNickname(nickname)
 		setEditing(true)
 	}
 
-	/** 保存昵称 */
 	const saveNickname = async () => {
-		if (!tempNickname.trim()) {
-			Taro.showToast({ title: '昵称不能为空', icon: 'none' })
+		const error = validateNickname(tempNickname)
+		if (error) {
+			Taro.showToast({ title: error, icon: 'none' })
 			return
 		}
+
+		const sanitized = sanitizeNickname(tempNickname)
 		setSaving(true)
 		try {
+			const payloadAvatarUrl = isWxfilePreview(avatarUrl) ? '' : avatarUrl
 			await request('/api/user/profile', {
 				method: 'PUT',
-				data: { nickname: tempNickname.trim(), avatarUrl },
+				data: { nickname: sanitized, avatarUrl: payloadAvatarUrl },
 			})
-			setNickname(tempNickname.trim())
+			setNickname(sanitized)
 			setEditing(false)
 			Taro.showToast({ title: '保存成功', icon: 'success' })
 		} catch (err) {
@@ -105,7 +134,6 @@ export default function User() {
 		}
 	}
 
-	/** 退出登录 */
 	const handleLogout = () => {
 		Taro.showModal({
 			title: '提示',
@@ -119,13 +147,14 @@ export default function User() {
 		})
 	}
 
+	const displayAvatarUrl = isWxfilePreview(avatarUrl) ? avatarUrl : avatarUrl
+
 	return (
 		<View className='user-page'>
-			{/* 头部信息区 */}
 			<View className='user-header'>
 				<View className='avatar-wrap' onClick={chooseAvatar}>
-					{avatarUrl ? (
-						<Image className='avatar-img' src={resolveImageUrl(avatarUrl)} mode='aspectFill' />
+					{displayAvatarUrl ? (
+						<Image className='avatar-img' src={resolveImageUrl(displayAvatarUrl)} mode='aspectFill' />
 					) : (
 						<View className='avatar-placeholder'>👤</View>
 					)}
@@ -137,9 +166,10 @@ export default function User() {
 							<Input
 								className='nickname-input'
 								value={tempNickname}
-								placeholder='请输入昵称'
+								placeholder='请输入昵称(2-12字符)'
 								onInput={(e) => setTempNickname(e.detail.value)}
 								focus
+								maxlength={12}
 							/>
 							<Button className='save-btn' loading={saving} onClick={saveNickname} hoverClass='save-btn-hover'>
 								保存
@@ -157,7 +187,6 @@ export default function User() {
 				</View>
 			</View>
 
-			{/* 功能区 */}
 			<View className='user-actions'>
 				<Button className='logout-btn' hoverClass='logout-btn-hover' onClick={handleLogout}>
 					退出登录
