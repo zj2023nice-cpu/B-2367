@@ -33,6 +33,8 @@ function validateBio(raw: string): string | null {
 	return null
 }
 
+const DEFAULT_PROFILE = { nickname: '游客', avatarUrl: '', bio: '' } as const
+
 function isWxfilePreview(url: string): boolean {
 	return /^wxfile:\/\//i.test(url)
 }
@@ -47,6 +49,7 @@ export default function User() {
 	const [tempBio, setTempBio] = useState('')
 	const [saving, setSaving] = useState(false)
 	const [updatingAvatar, setUpdatingAvatar] = useState(false)
+	const [restoring, setRestoring] = useState(false)
 	const pauseProfileSyncRef = useRef(false)
 
 	useDidShow(() => {
@@ -75,7 +78,7 @@ export default function User() {
 	}
 
 	const chooseAvatar = async () => {
-		if (updatingAvatar) return
+		if (updatingAvatar || restoring) return
 
 		let previewApplied = false
 		setUpdatingAvatar(true)
@@ -128,6 +131,7 @@ export default function User() {
 	}
 
 	const startEditNickname = () => {
+		if (restoring) return
 		setTempNickname(nickname)
 		setEditingNickname(true)
 	}
@@ -158,6 +162,7 @@ export default function User() {
 	}
 
 	const startEditBio = () => {
+		if (restoring) return
 		setTempBio(bio)
 		setEditingBio(true)
 	}
@@ -193,6 +198,40 @@ export default function User() {
 
 	const cancelEditBio = () => {
 		setEditingBio(false)
+	}
+
+	const handleRestoreDefault = () => {
+		if (restoring || saving || updatingAvatar) return
+
+		Taro.showModal({
+			title: '恢复默认资料',
+			content: '确定要恢复默认资料吗？昵称、头像、个人简介都将恢复为初始默认值。',
+			success: async (res) => {
+				if (!res.confirm) return
+
+				setRestoring(true)
+				pauseProfileSyncRef.current = true
+				setEditingNickname(false)
+				setEditingBio(false)
+
+				try {
+					await request<{ nickname: string; avatarUrl: string; bio: string }>('/api/user/profile/reset', {
+						method: 'POST',
+					})
+					setNickname(DEFAULT_PROFILE.nickname)
+					setAvatarUrl(DEFAULT_PROFILE.avatarUrl)
+					setBio(DEFAULT_PROFILE.bio)
+					Taro.showToast({ title: '已恢复默认资料', icon: 'success' })
+				} catch (err) {
+					console.error('恢复默认资料失败', err)
+					Taro.showToast({ title: '恢复失败，请重试', icon: 'none' })
+					await fetchProfile()
+				} finally {
+					pauseProfileSyncRef.current = false
+					setRestoring(false)
+				}
+			},
+		})
 	}
 
 	const handleLogout = () => {
@@ -275,6 +314,15 @@ export default function User() {
 			</View>
 
 			<View className='user-actions'>
+				<Button
+					className='restore-btn'
+					hoverClass='restore-btn-hover'
+					loading={restoring}
+					disabled={restoring || saving || updatingAvatar}
+					onClick={handleRestoreDefault}
+				>
+					恢复默认资料
+				</Button>
 				<Button className='logout-btn' hoverClass='logout-btn-hover' onClick={handleLogout}>
 					退出登录
 				</Button>

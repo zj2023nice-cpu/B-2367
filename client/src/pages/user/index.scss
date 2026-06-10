@@ -161,6 +161,28 @@
 
 .user-actions {
 	padding: 60px 40px;
+	display: flex;
+	flex-direction: column;
+	gap: 24px;
+}
+
+.restore-btn {
+	width: 100% !important;
+	height: 96px !important;
+	line-height: 96px !important;
+	font-size: 32px !important;
+	color: #667eea !important;
+	background: #fff !important;
+	border-radius: 16px !important;
+	border: 2px solid #667eea !important;
+}
+
+.restore-btn-hover {
+	background: #f0f0ff !important;
+}
+
+.restore-btn[disabled] {
+	opacity: 0.5 !important;
 }
 
 .logout-btn {

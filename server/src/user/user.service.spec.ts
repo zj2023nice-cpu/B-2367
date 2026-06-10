@@ -505,4 +505,52 @@ describe('UserService', () => {
       expect(saved.bio).toBe('旅行者');
     });
   });
+
+  describe('resetProfile', () => {
+    it('resets existing profile to default values', async () => {
+      mockRepo.findOne.mockResolvedValue({
+        key: 'default',
+        nickname: '自定义昵称',
+        avatarUrl: 'https://example.com/avatar.png',
+        bio: '自定义简介',
+      });
+
+      const result = await service.resetProfile();
+
+      expect(mockRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          nickname: '游客',
+          avatarUrl: '',
+          bio: '',
+        }),
+      );
+      expect(result).toEqual({ nickname: '游客', avatarUrl: '', bio: '' });
+    });
+
+    it('creates profile with defaults when none exists', async () => {
+      mockRepo.findOne.mockResolvedValue(null);
+
+      const result = await service.resetProfile();
+
+      expect(mockRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          key: 'default',
+          nickname: '游客',
+          avatarUrl: '',
+          bio: '',
+        }),
+      );
+      expect(result).toEqual({ nickname: '游客', avatarUrl: '', bio: '' });
+    });
+
+    it('returns default values matching getProfile fallback', async () => {
+      mockRepo.findOne.mockResolvedValue(null);
+
+      const resetResult = await service.resetProfile();
+      mockRepo.findOne.mockResolvedValue(null);
+      const getResult = await service.getProfile();
+
+      expect(resetResult).toEqual(getResult);
+    });
+  });
 });

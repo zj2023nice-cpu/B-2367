@@ -31,11 +31,17 @@ export class UserService {
     private readonly repo: Repository<UserProfile>,
   ) {}
 
+  private static readonly DEFAULT_PROFILE = {
+    nickname: '游客',
+    avatarUrl: '',
+    bio: '',
+  } as const;
+
   async getProfile(): Promise<{ nickname: string; avatarUrl: string; bio: string }> {
     this.logger.log('获取用户资料');
     const profile = await this.repo.findOne({ where: { key: 'default' } });
     if (!profile) {
-      return { nickname: '游客', avatarUrl: '', bio: '' };
+      return { ...UserService.DEFAULT_PROFILE };
     }
     return { nickname: profile.nickname, avatarUrl: profile.avatarUrl, bio: profile.bio };
   }
@@ -87,5 +93,23 @@ export class UserService {
       }
     }
     await this.repo.save(profile);
+  }
+
+  async resetProfile(): Promise<{ nickname: string; avatarUrl: string; bio: string }> {
+    this.logger.log('恢复默认用户资料');
+    const defaults = UserService.DEFAULT_PROFILE;
+    let profile = await this.repo.findOne({ where: { key: 'default' } });
+    if (!profile) {
+      profile = this.repo.create({
+        key: 'default',
+        ...defaults,
+      });
+    } else {
+      profile.nickname = defaults.nickname;
+      profile.avatarUrl = defaults.avatarUrl;
+      profile.bio = defaults.bio;
+    }
+    await this.repo.save(profile);
+    return { ...defaults };
   }
 }

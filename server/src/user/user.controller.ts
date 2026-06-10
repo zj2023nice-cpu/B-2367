@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Body } from '@nestjs/common';
+import { Controller, Get, Put, Post, Body } from '@nestjs/common';
 import { UserService } from './user.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
@@ -16,5 +16,11 @@ export class UserController {
   @Put('profile')
   updateProfile(@Body() dto: UpdateProfileDto) {
     return this.userService.updateProfile(dto);
+  }
+
+  /** POST /api/user/profile/reset — 恢复默认资料 */
+  @Post('profile/reset')
+  resetProfile() {
+    return this.userService.resetProfile();
   }
 }
