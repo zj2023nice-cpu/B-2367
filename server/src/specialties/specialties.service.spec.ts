@@ -63,19 +63,17 @@ describe('SpecialtiesService', () => {
   it('splits region by comma and filters with IN clause', async () => {
     const dto: QuerySpecialtyDto = { region: '北京,天津' };
     await service.findAll(dto);
-    expect(mockQb.andWhere).toHaveBeenCalledWith(
-      's.region IN (:...regions)',
-      { regions: ['北京', '天津'] },
-    );
+    expect(mockQb.andWhere).toHaveBeenCalledWith('s.region IN (:...regions)', {
+      regions: ['北京', '天津'],
+    });
   });
 
   it('filters out empty region segments', async () => {
     const dto: QuerySpecialtyDto = { region: '北京,,天津,' };
     await service.findAll(dto);
-    expect(mockQb.andWhere).toHaveBeenCalledWith(
-      's.region IN (:...regions)',
-      { regions: ['北京', '天津'] },
-    );
+    expect(mockQb.andWhere).toHaveBeenCalledWith('s.region IN (:...regions)', {
+      regions: ['北京', '天津'],
+    });
   });
 
   it('applies limit via take', async () => {

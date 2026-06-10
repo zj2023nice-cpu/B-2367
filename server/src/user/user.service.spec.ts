@@ -41,8 +41,12 @@ describe('UserService', () => {
       dto.nickname = '😀😂🤣';
       dto.avatarUrl = '';
 
-      await expect(service.updateProfile(dto)).rejects.toThrow(BadRequestException);
-      await expect(service.updateProfile(dto)).rejects.toThrow('昵称不能只由表情或空白组成');
+      await expect(service.updateProfile(dto)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.updateProfile(dto)).rejects.toThrow(
+        '昵称不能只由表情或空白组成',
+      );
       expect(mockRepo.save).not.toHaveBeenCalled();
     });
 
@@ -51,8 +55,12 @@ describe('UserService', () => {
       dto.nickname = 'A';
       dto.avatarUrl = '';
 
-      await expect(service.updateProfile(dto)).rejects.toThrow(BadRequestException);
-      await expect(service.updateProfile(dto)).rejects.toThrow('昵称长度需在2到12个字符之间');
+      await expect(service.updateProfile(dto)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.updateProfile(dto)).rejects.toThrow(
+        '昵称长度需在2到12个字符之间',
+      );
       expect(mockRepo.save).not.toHaveBeenCalled();
     });
 
@@ -61,7 +69,9 @@ describe('UserService', () => {
       dto.nickname = '一二三四五六七八九十十一十';
       dto.avatarUrl = '';
 
-      await expect(service.updateProfile(dto)).rejects.toThrow(BadRequestException);
+      await expect(service.updateProfile(dto)).rejects.toThrow(
+        BadRequestException,
+      );
       expect(mockRepo.save).not.toHaveBeenCalled();
     });
 
@@ -70,7 +80,9 @@ describe('UserService', () => {
       dto.nickname = '   ';
       dto.avatarUrl = '';
 
-      await expect(service.updateProfile(dto)).rejects.toThrow(BadRequestException);
+      await expect(service.updateProfile(dto)).rejects.toThrow(
+        BadRequestException,
+      );
       expect(mockRepo.save).not.toHaveBeenCalled();
     });
 
@@ -79,8 +91,12 @@ describe('UserService', () => {
       dto.nickname = '  😀  😂  ';
       dto.avatarUrl = '';
 
-      await expect(service.updateProfile(dto)).rejects.toThrow(BadRequestException);
-      await expect(service.updateProfile(dto)).rejects.toThrow('昵称不能只由表情或空白组成');
+      await expect(service.updateProfile(dto)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.updateProfile(dto)).rejects.toThrow(
+        '昵称不能只由表情或空白组成',
+      );
       expect(mockRepo.save).not.toHaveBeenCalled();
     });
 
@@ -206,7 +222,9 @@ describe('UserService', () => {
 
       await service.updateProfile(dto);
       expect(mockRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ avatarUrl: 'https://example.com/avatar.png' }),
+        expect.objectContaining({
+          avatarUrl: 'https://example.com/avatar.png',
+        }),
       );
     });
   });
@@ -225,7 +243,11 @@ describe('UserService', () => {
         bio: '热爱旅行的美食家',
       });
       const result = await service.getProfile();
-      expect(result).toEqual({ nickname: '小明', avatarUrl: '/images/avatar.png', bio: '热爱旅行的美食家' });
+      expect(result).toEqual({
+        nickname: '小明',
+        avatarUrl: '/images/avatar.png',
+        bio: '热爱旅行的美食家',
+      });
     });
   });
 
@@ -268,8 +290,12 @@ describe('UserService', () => {
       dto.nickname = '测试用户';
       dto.bio = '   ';
 
-      await expect(service.updateProfile(dto)).rejects.toThrow(BadRequestException);
-      await expect(service.updateProfile(dto)).rejects.toThrow('简介不能仅由空白组成');
+      await expect(service.updateProfile(dto)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.updateProfile(dto)).rejects.toThrow(
+        '简介不能仅由空白组成',
+      );
       expect(mockRepo.save).not.toHaveBeenCalled();
     });
 
@@ -278,8 +304,12 @@ describe('UserService', () => {
       dto.nickname = '测试用户';
       dto.bio = '一'.repeat(61);
 
-      await expect(service.updateProfile(dto)).rejects.toThrow(BadRequestException);
-      await expect(service.updateProfile(dto)).rejects.toThrow('简介最多60个字符');
+      await expect(service.updateProfile(dto)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.updateProfile(dto)).rejects.toThrow(
+        '简介最多60个字符',
+      );
       expect(mockRepo.save).not.toHaveBeenCalled();
     });
 
@@ -390,7 +420,8 @@ describe('UserService', () => {
       dto2.bio = '简介B';
       await service.updateProfile(dto2);
 
-      const saved = mockRepo.save.mock.calls[mockRepo.save.mock.calls.length - 1][0];
+      const saved =
+        mockRepo.save.mock.calls[mockRepo.save.mock.calls.length - 1][0];
       expect(saved.nickname).toBe('昵称B');
       expect(saved.bio).toBe('简介B');
     });
@@ -468,7 +499,8 @@ describe('UserService', () => {
       dto2.bio = '美食家';
       await service.updateProfile(dto2);
 
-      const saved = mockRepo.save.mock.calls[mockRepo.save.mock.calls.length - 1][0];
+      const saved =
+        mockRepo.save.mock.calls[mockRepo.save.mock.calls.length - 1][0];
       expect(saved.avatarUrl).toBe('https://example.com/avatar1.png');
       expect(saved.bio).toBe('美食家');
     });
@@ -500,7 +532,8 @@ describe('UserService', () => {
       dto2.bio = '旅行者';
       await service.updateProfile(dto2);
 
-      const saved = mockRepo.save.mock.calls[mockRepo.save.mock.calls.length - 1][0];
+      const saved =
+        mockRepo.save.mock.calls[mockRepo.save.mock.calls.length - 1][0];
       expect(saved.avatarUrl).toBe('https://example.com/avatar2.png');
       expect(saved.bio).toBe('旅行者');
     });

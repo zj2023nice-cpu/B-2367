@@ -3,8 +3,7 @@ export interface ParsedDateResult {
   date: Date | null;
 }
 
-const CHINESE_FULL =
-  /^(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日?$/;
+const CHINESE_FULL = /^(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日?$/;
 const CHINESE_NO_YEAR = /^(\d{1,2})\s*月\s*(\d{1,2})\s*日?$/;
 const ISO_DATE = /^(\d{4})[/\-.](\d{1,2})[/\-.](\d{1,2})$/;
 const SHORT_DATE = /^(\d{1,2})[/\-.](\d{1,2})$/;

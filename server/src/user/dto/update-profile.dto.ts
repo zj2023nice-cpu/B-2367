@@ -7,7 +7,8 @@ import {
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 
-const NO_EMOJI_ONLY = /^(?![\p{Emoji_Presentation}\p{Extended_Pictographic}\s]*$).*/u;
+const NO_EMOJI_ONLY =
+  /^(?![\p{Emoji_Presentation}\p{Extended_Pictographic}\s]*$).*/u;
 
 function normalizeNickname(value: string): string {
   if (typeof value !== 'string') return value;

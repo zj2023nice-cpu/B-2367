@@ -8,7 +8,15 @@ import { extractRegion } from '../overview/region-extractor';
 const logger = new Logger('SeedData');
 
 const DEFAULT_SCHEDULES: Array<
-  Pick<Schedule, 'title' | 'description' | 'imageUrl' | 'dateText' | 'completed' | 'completedAt'>
+  Pick<
+    Schedule,
+    | 'title'
+    | 'description'
+    | 'imageUrl'
+    | 'dateText'
+    | 'completed'
+    | 'completedAt'
+  >
 > = [
   {
     title: '北京南锣鼓巷美食探店',

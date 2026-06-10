@@ -1,6 +1,6 @@
 # 特产日程 — 服务端
 
-特产日程项目的 NestJS 后端，提供特产 CRUD、日程管理、用户资料、地图地理编码与总览统计等 REST API。数据库使用 SQL.js（SQLite 的纯 JS 实现），零外部依赖即可启动。
+特产日程项目的 NestJS 后端，提供特产 CRUD、日程管理、用户资料、地图地理编码与总览统计等 REST API。数据库使用 SQL.js（SQLite 的纯 JS 实现），需配置必填环境变量后方可启动。
 
 ## 目录结构
 
@@ -43,13 +43,13 @@ npm install
 cp .env.example .env
 ```
 
-编辑 `.env`，至少填写 `TENCENT_MAP_KEY`：
+编辑 `.env`，填写以下必填项：
 
 | 变量 | 必填 | 默认值 | 说明 |
 |------|------|--------|------|
-| `TENCENT_MAP_KEY` | 否 | — | 腾讯地图 WebService API Key。未配置时服务可启动，但 geocode 接口返回 500 |
-| `PORT` | 否 | `3001` | 服务监听端口，1–65535 整数 |
-| `DB_PATH` | 否 | `data/app.db` | SQLite 数据库文件路径，相对于 server 根目录 |
+| `TENCENT_MAP_KEY` | **是** | — | 腾讯地图 WebService API Key。缺失或为占位值时服务无法启动 |
+| `PORT` | **是** | — | 服务监听端口，1–65535 整数。缺失时服务无法启动 |
+| `DB_PATH` | **是** | — | SQLite 数据库文件路径，相对于 server 根目录。缺失时服务无法启动 |
 | `CORS_ORIGIN` | 否 | 允许所有来源 | 跨域允许的 origin，生产环境建议设置 |
 
 > 腾讯地图 Key 申请地址：<https://lbs.qq.com/dev/console/application/mine>
@@ -112,25 +112,27 @@ npm run start:prod
 ## 地图 Key 说明
 
 - 地理编码使用腾讯位置服务 WebService API
-- `TENCENT_MAP_KEY` 在 `.env` 中配置
-- 未配置或值为 `YOUR_KEY_HERE` 时，服务启动会打印警告，geocode 接口请求返回 500
+- `TENCENT_MAP_KEY` 在 `.env` 中配置，**为必填项**
+- 缺失或值为占位值（如 `YOUR_KEY_HERE`）时，服务启动直接失败
 - Key 配额限制请查看腾讯地图控制台
 - 批量地理编码默认并发数为 4，可在 `MapService.batchGeocode()` 中调整
 
 ## 数据库
 
 - 类型：SQL.js（SQLite 的 WebAssembly/纯 JS 实现）
-- 位置：由 `DB_PATH` 环境变量控制，默认 `data/app.db`
+- 位置：由必填环境变量 `DB_PATH` 控制，示例值 `data/app.db`
 - `synchronize: true`：Entity 变更自动同步表结构（开发便利，生产环境慎用）
 - 数据库文件在 `server/.gitignore` 中被忽略，不会提交到仓库
 - Docker 部署时通过 volume 持久化数据（见 `docker-compose.yml`）
 
 ## 环境变量校验
 
-服务启动时通过 `ConfigModule.forRoot({ validate })` 执行环境变量校验：
+服务启动时通过 `ConfigModule.forRoot({ validate })` 执行环境变量校验，校验失败则直接阻止启动：
 
-- `PORT` 不为 1–65535 整数时，启动失败并给出明确提示
-- `TENCENT_MAP_KEY` 未配置或为占位值时，打印警告但不阻止启动
+- **`TENCENT_MAP_KEY`**：必填，缺失或为占位值（`YOUR_KEY_HERE` 等）时启动失败
+- **`PORT`**：必填，缺失或不为 1–65535 整数时启动失败
+- **`DB_PATH`**：必填，缺失或为占位值时启动失败
+- **`CORS_ORIGIN`**：可选，留空则允许所有来源
 - 校验失败时错误信息会提示「请复制 `.env.example` 为 `.env` 并按提示填写」
 
 ## Docker 部署
@@ -157,8 +159,8 @@ docker compose up -d
 
 | 现象 | 可能原因 | 解决方式 |
 |------|----------|----------|
-| 启动报错 `环境变量校验失败` | PORT 等必填项配置异常 | 检查 `.env` 文件，对照 `.env.example` 修正 |
-| geocode 接口返回 500 | 未配置 `TENCENT_MAP_KEY` | 在 `.env` 中设置有效 Key |
+| 启动报错 `环境变量校验失败` | PORT / TENCENT_MAP_KEY / DB_PATH 等必填项缺失或为占位值 | 检查 `.env` 文件，对照 `.env.example` 修正，确保三项均填写有效值 |
+| geocode 接口返回 500 | `TENCENT_MAP_KEY` 无效或配额耗尽 | 检查 Key 是否正确，查看腾讯地图控制台配额 |
 | 日志显示 `腾讯地图 API 错误` | Key 无效或配额耗尽 | 检查 Key 是否正确，查看腾讯地图控制台配额 |
 | 数据库文件不存在 | 首次运行 | 正常现象，启动时自动创建 `data/app.db` |
 | 旧日程数据未更新 | Seed 仅处理空表或旧格式数据 | 删除 `data/app.db` 重启，或手动通过 API 修改 |

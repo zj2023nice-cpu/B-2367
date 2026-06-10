@@ -41,16 +41,16 @@ export class MapService {
 
   constructor(private readonly configService: ConfigService) {
     this.apiKey = this.configService.get<string>('TENCENT_MAP_KEY', '');
-    if (!this.apiKey || this.apiKey === 'YOUR_KEY_HERE') {
-      this.logger.warn('腾讯地图 Key 未配置，geocode 接口将无法正常工作');
-    }
   }
 
   private normalizeAddress(address: string): string {
     return address.trim().replace(/\s+/g, ' ').toLowerCase();
   }
 
-  async batchGeocode(addresses: string[], concurrency = 4): Promise<BatchGeocodeItem[]> {
+  async batchGeocode(
+    addresses: string[],
+    concurrency = 4,
+  ): Promise<BatchGeocodeItem[]> {
     if (!addresses || addresses.length === 0) {
       throw new HttpException('地址列表不能为空', HttpStatus.BAD_REQUEST);
     }
@@ -90,9 +90,7 @@ export class MapService {
           });
         } catch (err) {
           const msg =
-            err instanceof HttpException
-              ? err.message
-              : '地址解析失败';
+            err instanceof HttpException ? err.message : '地址解析失败';
           resultMap.set(norm, { address: original, error: msg });
         }
       }
@@ -118,7 +116,7 @@ export class MapService {
       throw new HttpException('地址参数不能为空', HttpStatus.BAD_REQUEST);
     }
 
-    if (!this.apiKey || this.apiKey === 'YOUR_KEY_HERE') {
+    if (!this.apiKey) {
       throw new HttpException(
         '腾讯地图 Key 未配置',
         HttpStatus.INTERNAL_SERVER_ERROR,

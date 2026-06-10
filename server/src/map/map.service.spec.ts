@@ -58,7 +58,12 @@ describe('MapService', () => {
 
 describe('MapService.batchGeocode dedup', () => {
   async function createServiceWithMock(
-    geocodeMock: (addr: string) => Promise<{ address: string; lat: number; lng: number; formattedAddress: string }>,
+    geocodeMock: (addr: string) => Promise<{
+      address: string;
+      lat: number;
+      lng: number;
+      formattedAddress: string;
+    }>,
   ): Promise<MapService> {
     const module: TestingModule = await Test.createTestingModule({
       providers: [

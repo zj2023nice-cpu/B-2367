@@ -4,7 +4,8 @@ import { Repository } from 'typeorm';
 import { UserProfile } from './user-profile.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
-const EMOJI_ONLY_REGEX = /^[\p{Emoji_Presentation}\p{Extended_Pictographic}\s]*$/u;
+const EMOJI_ONLY_REGEX =
+  /^[\p{Emoji_Presentation}\p{Extended_Pictographic}\s]*$/u;
 
 function sanitizeNickname(raw: string): string {
   const trimmed = raw.trim();
@@ -37,13 +38,21 @@ export class UserService {
     bio: '',
   } as const;
 
-  async getProfile(): Promise<{ nickname: string; avatarUrl: string; bio: string }> {
+  async getProfile(): Promise<{
+    nickname: string;
+    avatarUrl: string;
+    bio: string;
+  }> {
     this.logger.log('获取用户资料');
     const profile = await this.repo.findOne({ where: { key: 'default' } });
     if (!profile) {
       return { ...UserService.DEFAULT_PROFILE };
     }
-    return { nickname: profile.nickname, avatarUrl: profile.avatarUrl, bio: profile.bio };
+    return {
+      nickname: profile.nickname,
+      avatarUrl: profile.avatarUrl,
+      bio: profile.bio,
+    };
   }
 
   async updateProfile(dto: UpdateProfileDto): Promise<void> {
@@ -95,7 +104,11 @@ export class UserService {
     await this.repo.save(profile);
   }
 
-  async resetProfile(): Promise<{ nickname: string; avatarUrl: string; bio: string }> {
+  async resetProfile(): Promise<{
+    nickname: string;
+    avatarUrl: string;
+    bio: string;
+  }> {
     this.logger.log('恢复默认用户资料');
     const defaults = UserService.DEFAULT_PROFILE;
     let profile = await this.repo.findOne({ where: { key: 'default' } });

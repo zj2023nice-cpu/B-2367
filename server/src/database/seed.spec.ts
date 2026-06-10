@@ -38,8 +38,12 @@ describe('seedDatabase', () => {
     });
 
     expect(schedules.length).toBeGreaterThanOrEqual(6);
-    expect(schedules.every((item) => item.imageUrl.startsWith('/images/'))).toBe(true);
-    expect(schedules.every((item) => /^\d{4}年\d{2}月\d{2}日/.test(item.dateText))).toBe(true);
+    expect(
+      schedules.every((item) => item.imageUrl.startsWith('/images/')),
+    ).toBe(true);
+    expect(
+      schedules.every((item) => /^\d{4}年\d{2}月\d{2}日/.test(item.dateText)),
+    ).toBe(true);
     expect(schedules.some((item) => item.title.includes('北京'))).toBe(true);
   });
 
@@ -51,7 +55,9 @@ describe('seedDatabase', () => {
     });
 
     expect(specialties.length).toBe(8);
-    expect(specialties.every((s) => s.region && s.region.length > 0)).toBe(true);
+    expect(specialties.every((s) => s.region && s.region.length > 0)).toBe(
+      true,
+    );
     const beijing = specialties.find((s) => s.title === '北京烤鸭');
     expect(beijing?.region).toBe('北京');
   });
@@ -131,9 +137,15 @@ describe('seedDatabase', () => {
     const schedules = await scheduleRepo.find({ order: { id: 'ASC' } });
 
     expect(schedules.length).toBeGreaterThanOrEqual(6);
-    expect(schedules.some((item) => item.imageUrl.includes('placeholder'))).toBe(false);
-    expect(schedules.some((item) => item.dateText.includes('【日期'))).toBe(false);
-    expect(schedules.some((item) => item.title.includes('【日程标题'))).toBe(false);
+    expect(
+      schedules.some((item) => item.imageUrl.includes('placeholder')),
+    ).toBe(false);
+    expect(schedules.some((item) => item.dateText.includes('【日期'))).toBe(
+      false,
+    );
+    expect(schedules.some((item) => item.title.includes('【日程标题'))).toBe(
+      false,
+    );
   });
 
   it('replaces legacy generic schedules with concrete defaults', async () => {
@@ -159,7 +171,11 @@ describe('seedDatabase', () => {
     const schedules = await scheduleRepo.find({ order: { id: 'ASC' } });
 
     expect(schedules.length).toBeGreaterThanOrEqual(6);
-    expect(schedules.some((item) => /^第[一二三四五六七八九十]+天/.test(item.dateText))).toBe(false);
+    expect(
+      schedules.some((item) =>
+        /^第[一二三四五六七八九十]+天/.test(item.dateText),
+      ),
+    ).toBe(false);
     expect(schedules.some((item) => item.title === '抵达目的地')).toBe(false);
     expect(schedules.some((item) => item.title === '返程')).toBe(false);
   });

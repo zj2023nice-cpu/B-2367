@@ -15,7 +15,11 @@
 ### 后端启动（Docker）
 
 ```bash
-# 一键启动
+# 1. 配置环境变量（必填项缺失时服务无法启动）
+cp server/.env.example server/.env
+# 编辑 server/.env，填写 TENCENT_MAP_KEY、PORT、DB_PATH
+
+# 2. 一键启动
 docker compose up
 ```
 

@@ -54,8 +54,18 @@ export class OverviewService {
   ) {}
 
   private static readonly QUICK_ENTRIES: OverviewQuickEntry[] = [
-    { key: 'specialties', label: '特产', icon: '🎁', path: '/pages/specialties/index' },
-    { key: 'schedule', label: '日程', icon: '📅', path: '/pages/schedule/index' },
+    {
+      key: 'specialties',
+      label: '特产',
+      icon: '🎁',
+      path: '/pages/specialties/index',
+    },
+    {
+      key: 'schedule',
+      label: '日程',
+      icon: '📅',
+      path: '/pages/schedule/index',
+    },
     { key: 'map', label: '地图', icon: '🗺️', path: '/pages/map/index' },
     { key: 'user', label: '我的', icon: '👤', path: '/pages/user/index' },
   ];
@@ -97,7 +107,9 @@ export class OverviewService {
     ]);
 
     const specialtyCount =
-      specialtyCountResult.status === 'fulfilled' ? specialtyCountResult.value : 0;
+      specialtyCountResult.status === 'fulfilled'
+        ? specialtyCountResult.value
+        : 0;
 
     const regionCount =
       regionCountResult.status === 'fulfilled'
@@ -105,7 +117,9 @@ export class OverviewService {
         : 0;
 
     const scheduleCount =
-      scheduleCountResult.status === 'fulfilled' ? scheduleCountResult.value : 0;
+      scheduleCountResult.status === 'fulfilled'
+        ? scheduleCountResult.value
+        : 0;
 
     const scheduleRows =
       scheduleRowsResult.status === 'fulfilled' ? scheduleRowsResult.value : [];
@@ -121,7 +135,10 @@ export class OverviewService {
         ? recentSpecialtiesResult.value
         : [];
     const recentById = new Map<number, OverviewRecentSpecialty>();
-    for (const r of recentRows as Pick<Specialty, 'id' | 'title' | 'imageUrl' | 'address'>[]) {
+    for (const r of recentRows as Pick<
+      Specialty,
+      'id' | 'title' | 'imageUrl' | 'address'
+    >[]) {
       recentById.set(r.id, {
         id: r.id,
         title: r.title,
@@ -145,7 +162,10 @@ export class OverviewService {
   private pickLatestParseableSchedule(
     rows: Pick<Schedule, 'id' | 'title' | 'dateText'>[],
   ): OverviewLatestSchedule | null {
-    let best: { row: Pick<Schedule, 'id' | 'title' | 'dateText'>; ts: number } | null = null;
+    let best: {
+      row: Pick<Schedule, 'id' | 'title' | 'dateText'>;
+      ts: number;
+    } | null = null;
 
     for (const row of rows) {
       const parsed = parseDateText(row.dateText);

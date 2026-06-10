@@ -367,8 +367,7 @@ describe('App (e2e)', () => {
 
     const schedulesBody = schedulesRes.body as ApiResponse<ScheduleDto[]>;
 
-    const CHINESE_FULL =
-      /^(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日?$/;
+    const CHINESE_FULL = /^(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日?$/;
     const WEEKDAY_SUFFIX =
       /\s*[·\s]+\s*(?:星期[一二三四五六日天]|周[一二三四五六日天]|(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\w*)\s*$/i;
 
@@ -380,9 +379,7 @@ describe('App (e2e)', () => {
     } | null = null;
 
     for (const sch of schedulesBody.data) {
-      const stripped = sch.dateText
-        .replace(WEEKDAY_SUFFIX, '')
-        .trim();
+      const stripped = sch.dateText.replace(WEEKDAY_SUFFIX, '').trim();
       const m = stripped.match(CHINESE_FULL);
       if (!m) continue;
       const year = parseInt(m[1], 10);
@@ -397,7 +394,12 @@ describe('App (e2e)', () => {
         continue;
       const ts = d.getTime();
       if (!expectedLatest || ts > expectedLatest.ts) {
-        expectedLatest = { id: sch.id, title: sch.title, dateText: sch.dateText, ts };
+        expectedLatest = {
+          id: sch.id,
+          title: sch.title,
+          dateText: sch.dateText,
+          ts,
+        };
       }
     }
 

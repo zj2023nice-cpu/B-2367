@@ -1,6 +1,9 @@
-import { Logger } from '@nestjs/common';
-
-const logger = new Logger('ConfigValidation');
+const PLACEHOLDER_VALUES = new Set([
+  'YOUR_KEY_HERE',
+  'CHANGEME',
+  'TODO',
+  'PLACEHOLDER',
+]);
 
 interface EnvRule {
   required: boolean;
@@ -11,8 +14,7 @@ interface EnvRule {
 
 const ENV_RULES: Record<string, EnvRule> = {
   PORT: {
-    required: false,
-    default: '3001',
+    required: true,
     validate: (v) => {
       const n = Number(v);
       if (!Number.isInteger(n) || n < 1 || n > 65535) {
@@ -23,18 +25,23 @@ const ENV_RULES: Record<string, EnvRule> = {
     hint: '示例: PORT=3001',
   },
   TENCENT_MAP_KEY: {
-    required: false,
+    required: true,
     validate: (v) => {
-      if (!v || v === 'YOUR_KEY_HERE') {
-        return null;
+      if (PLACEHOLDER_VALUES.has(v)) {
+        return 'TENCENT_MAP_KEY 不能使用占位值，请替换为真实密钥';
       }
       return null;
     },
-    hint: '在 .env 中设置 TENCENT_MAP_KEY=<你的密钥>；未配置时地图 geocode 接口不可用',
+    hint: '在 .env 中设置 TENCENT_MAP_KEY=<你的密钥>；申请地址: https://lbs.qq.com/dev/console/application/mine',
   },
   DB_PATH: {
-    required: false,
-    default: 'data/app.db',
+    required: true,
+    validate: (v) => {
+      if (PLACEHOLDER_VALUES.has(v)) {
+        return 'DB_PATH 不能使用占位值，请替换为有效路径';
+      }
+      return null;
+    },
     hint: '示例: DB_PATH=data/app.db',
   },
   CORS_ORIGIN: {
@@ -43,9 +50,10 @@ const ENV_RULES: Record<string, EnvRule> = {
   },
 };
 
-export function validateEnv(config: Record<string, unknown>): Record<string, unknown> {
+export function validateEnv(
+  config: Record<string, unknown>,
+): Record<string, unknown> {
   const errors: string[] = [];
-  const warnings: string[] = [];
 
   for (const [key, rule] of Object.entries(ENV_RULES)) {
     const raw = config[key] as string | undefined;
@@ -66,17 +74,6 @@ export function validateEnv(config: Record<string, unknown>): Record<string, unk
         errors.push(`${key}: ${err}。${rule.hint || ''}`);
       }
     }
-  }
-
-  if (config.TENCENT_MAP_KEY === 'YOUR_KEY_HERE' || !config.TENCENT_MAP_KEY) {
-    warnings.push(
-      'TENCENT_MAP_KEY 未配置或仍为占位值，地图 geocode 接口将返回 500。' +
-        '请在 .env 中设置有效密钥，参考 server/.env.example。',
-    );
-  }
-
-  for (const w of warnings) {
-    logger.warn(w);
   }
 
   if (errors.length > 0) {
