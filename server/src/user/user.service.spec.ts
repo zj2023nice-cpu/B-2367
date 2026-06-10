@@ -539,6 +539,100 @@ describe('UserService', () => {
     });
   });
 
+  describe('updateProfile — defense-in-depth: service rejects without DTO', () => {
+    it('rejects emoji-only nickname even when DTO validation is bypassed', async () => {
+      const dto = new UpdateProfileDto();
+      (dto as any).nickname = '😀😁😂';
+
+      await expect(service.updateProfile(dto)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.updateProfile(dto)).rejects.toThrow(
+        '昵称不能只由表情或空白组成',
+      );
+      expect(mockRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects whitespace-only nickname even when DTO validation is bypassed', async () => {
+      const dto = new UpdateProfileDto();
+      (dto as any).nickname = '   ';
+
+      await expect(service.updateProfile(dto)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(mockRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects too-short nickname even when DTO validation is bypassed', async () => {
+      const dto = new UpdateProfileDto();
+      (dto as any).nickname = 'A';
+
+      await expect(service.updateProfile(dto)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.updateProfile(dto)).rejects.toThrow(
+        '昵称长度需在2到12个字符之间',
+      );
+      expect(mockRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects too-long nickname even when DTO validation is bypassed', async () => {
+      const dto = new UpdateProfileDto();
+      (dto as any).nickname = '一二三四五六七八九十十一十';
+
+      await expect(service.updateProfile(dto)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(mockRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects emoji + spaces nickname at service level', async () => {
+      const dto = new UpdateProfileDto();
+      (dto as any).nickname = ' 😀 😂 ';
+
+      await expect(service.updateProfile(dto)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.updateProfile(dto)).rejects.toThrow(
+        '昵称不能只由表情或空白组成',
+      );
+      expect(mockRepo.save).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('updateProfile — avatarUrl undefined vs empty string', () => {
+    it('treats undefined avatarUrl as empty string when creating new profile', async () => {
+      mockRepo.findOne.mockResolvedValue(null);
+
+      const dto = new UpdateProfileDto();
+      dto.nickname = '新用户';
+
+      await service.updateProfile(dto);
+      expect(mockRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ avatarUrl: '' }),
+      );
+    });
+
+    it('preserves existing avatarUrl when dto.avatarUrl is undefined', async () => {
+      mockRepo.findOne.mockResolvedValue({
+        key: 'default',
+        nickname: '旧昵称',
+        avatarUrl: 'https://example.com/old.png',
+        bio: '旧简介',
+      });
+
+      const dto = new UpdateProfileDto();
+      dto.nickname = '新昵称';
+
+      await service.updateProfile(dto);
+      expect(mockRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          avatarUrl: 'https://example.com/old.png',
+        }),
+      );
+    });
+  });
+
   describe('resetProfile', () => {
     it('resets existing profile to default values', async () => {
       mockRepo.findOne.mockResolvedValue({
