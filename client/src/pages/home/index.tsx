@@ -7,7 +7,7 @@ import { checkLoginGuard } from '../../utils/auth'
 import { request } from '../../services/request'
 import { resolveImageUrl } from '../../utils/common'
 import { parseDateText } from '../../utils/dateParser'
-import { getRecentlyVisited } from '../../utils/favoriteStore'
+import { getRecentVisitIds, pruneRecentVisitIds } from '../../utils/recentVisitStore'
 import './index.scss'
 
 interface OverviewLatestSchedule {
@@ -59,10 +59,16 @@ export default function Home() {
 	const fetchOverview = useCallback(async () => {
 		setLoading(true)
 		try {
-			const visited = getRecentlyVisited(4)
-			const idsParam = visited.length > 0 ? `?visitedIds=${visited.map((r) => r.id).join(',')}` : ''
+			const visitedIds = getRecentVisitIds(3)
+			const idsParam = visitedIds.length > 0 ? `?visitedIds=${visitedIds.join(',')}` : ''
 			const data = await request<OverviewData>(`/api/overview${idsParam}`)
 			setOverview(data)
+			if (data?.recentSpecialties) {
+				const validIds = data.recentSpecialties
+					.map((s) => s.id)
+					.filter((id): id is number => typeof id === 'number' && Number.isFinite(id))
+				pruneRecentVisitIds(validIds)
+			}
 		} catch {
 			setOverview(null)
 		} finally {
@@ -92,9 +98,14 @@ export default function Home() {
 		Taro.switchTab({ url: '/pages/schedule/index' })
 	}
 
-	const goToSpecialty = (id?: number) => {
-		if (id == null) return
-		Taro.switchTab({ url: '/pages/specialties/index' })
+	const goToSpecialtyMap = (address?: string) => {
+		if (!address) {
+			Taro.showToast({ title: '该特产暂无地址信息', icon: 'none' })
+			return
+		}
+		Taro.navigateTo({
+			url: `/pages/map/index?address=${encodeURIComponent(address)}`,
+		})
 	}
 
 	const goToPath = (path?: string) => {
@@ -175,26 +186,37 @@ export default function Home() {
 					{loading ? (
 						<View className='home-skeleton home-skeleton--card' />
 					) : recentSpecialties.length > 0 ? (
-						<ScrollView scrollX className='home-recent-scroll'>
-							<View className='home-recent-list'>
-								{recentSpecialties.map((item) => (
+						<View className='home-visit-list'>
+							{recentSpecialties.map((item) => {
+								const addr = safeStr(item.address)
+								const canNavigate = !!addr
+								return (
 									<View
 										key={item.id}
-										className='home-recent-card'
-										onClick={() => goToSpecialty(item.id)}
+										className={`home-visit-card ${canNavigate ? '' : 'home-visit-card--disabled'}`}
+										onClick={() => goToSpecialtyMap(addr)}
 									>
 										<Image
-											className='home-recent-img'
+											className='home-visit-img'
 											src={resolveImageUrl(item.imageUrl)}
 											mode='aspectFill'
 										/>
-										<Text className='home-recent-title'>
-											{safeStr(item.title, '未命名')}
-										</Text>
+										<View className='home-visit-info'>
+											<Text className='home-visit-title'>
+												{safeStr(item.title, '未命名')}
+											</Text>
+											{addr ? (
+												<Text className='home-visit-address'>📍 {addr}</Text>
+											) : (
+												<Text className='home-visit-address home-visit-address--muted'>
+													暂无地址信息
+												</Text>
+											)}
+										</View>
 									</View>
-								))}
-							</View>
-						</ScrollView>
+								)
+							})}
+						</View>
 					) : (
 						<View className='home-empty-block'>
 							<Text className='home-empty-text'>暂无访问记录</Text>

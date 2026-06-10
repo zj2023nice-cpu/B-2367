@@ -11,6 +11,7 @@ import {
 	getFavoriteCount,
 	recordVisit,
 } from '../../utils/favoriteStore'
+import { recordRecentVisit } from '../../utils/recentVisitStore'
 import './index.scss'
 
 interface SpecialtyItem {
@@ -255,6 +256,7 @@ export default function Specialties() {
 
 	const goToMap = (id: number, address: string) => {
 		recordVisit(id)
+		recordRecentVisit(id)
 		Taro.navigateTo({
 			url: `/pages/map/index?address=${encodeURIComponent(address)}`,
 		})
