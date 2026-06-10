@@ -1,13 +1,12 @@
 import { View, Image, Text, ScrollView } from '@tarojs/components'
-import { useDidShow } from '@tarojs/taro'
 import Taro from '@tarojs/taro'
-import { useState, useCallback } from 'react'
 import homeCover from '../../assets/images/landmark.jpg'
-import { checkLoginGuard } from '../../utils/auth'
 import { request } from '../../services/request'
-import { resolveImageUrl } from '../../utils/common'
+import { resolveImageUrl, safeNum, safeStr } from '../../utils/common'
 import { parseDateText } from '../../utils/dateParser'
 import { getRecentVisitIds, pruneRecentVisitIds } from '../../utils/recentVisitStore'
+import { usePageGuard } from '../../utils/usePageGuard'
+import { useAsyncState } from '../../utils/useAsyncState'
 import './index.scss'
 
 interface OverviewLatestSchedule {
@@ -44,41 +43,24 @@ interface OverviewData {
 	quickEntries?: OverviewQuickEntry[]
 }
 
-function safeNum(val: unknown, fallback = 0): number {
-	return typeof val === 'number' && Number.isFinite(val) ? val : fallback
-}
-
-function safeStr(val: unknown, fallback = ''): string {
-	return typeof val === 'string' ? val : fallback
+async function fetchOverview(): Promise<OverviewData> {
+	const visitedIds = getRecentVisitIds(3)
+	const idsParam = visitedIds.length > 0 ? `?visitedIds=${visitedIds.join(',')}` : ''
+	const data = await request<OverviewData>(`/api/overview${idsParam}`)
+	if (data?.recentSpecialties) {
+		const validIds = data.recentSpecialties
+			.map((s) => s.id)
+			.filter((id): id is number => typeof id === 'number' && Number.isFinite(id))
+		pruneRecentVisitIds(validIds)
+	}
+	return data
 }
 
 export default function Home() {
-	const [loading, setLoading] = useState(true)
-	const [overview, setOverview] = useState<OverviewData | null>(null)
+	const { loading, data: overview, refresh } = useAsyncState<OverviewData>(fetchOverview, [], false)
 
-	const fetchOverview = useCallback(async () => {
-		setLoading(true)
-		try {
-			const visitedIds = getRecentVisitIds(3)
-			const idsParam = visitedIds.length > 0 ? `?visitedIds=${visitedIds.join(',')}` : ''
-			const data = await request<OverviewData>(`/api/overview${idsParam}`)
-			setOverview(data)
-			if (data?.recentSpecialties) {
-				const validIds = data.recentSpecialties
-					.map((s) => s.id)
-					.filter((id): id is number => typeof id === 'number' && Number.isFinite(id))
-				pruneRecentVisitIds(validIds)
-			}
-		} catch {
-			setOverview(null)
-		} finally {
-			setLoading(false)
-		}
-	}, [])
-
-	useDidShow(() => {
-		checkLoginGuard()
-		fetchOverview()
+	usePageGuard(() => {
+		refresh()
 	})
 
 	const nickname = safeStr(overview?.defaultNickname, '游客')

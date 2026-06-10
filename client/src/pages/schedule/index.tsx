@@ -1,12 +1,12 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { View, ScrollView, Image, Text } from '@tarojs/components'
-import { useDidShow } from '@tarojs/taro'
-import Taro from '@tarojs/taro'
 import { request } from '../../services/request'
-import { checkLoginGuard } from '../../utils/auth'
 import { resolveImageUrl } from '../../utils/common'
 import { groupSortedScheduleList, type SortMode } from '../../utils/scheduleSort'
 import { useSortState } from '../../utils/useSortState'
+import { usePageGuard } from '../../utils/usePageGuard'
+import { useAsyncState } from '../../utils/useAsyncState'
+import { showToastSuccess } from '../../utils/toast'
 import './index.scss'
 
 interface ScheduleItem {
@@ -25,6 +25,11 @@ interface ScheduleStats {
 	pending: number
 }
 
+interface ScheduleData {
+	list: ScheduleItem[]
+	stats: ScheduleStats
+}
+
 type FilterMode = 'all' | 'pending' | 'completed'
 
 const SORT_OPTIONS: { mode: SortMode; label: string }[] = [
@@ -40,43 +45,32 @@ const FILTER_OPTIONS: { mode: FilterMode; label: string }[] = [
 ]
 
 export default function Schedule() {
-	const [list, setList] = useState<ScheduleItem[]>([])
-	const [loading, setLoading] = useState(true)
 	const [filter, setFilter] = useState<FilterMode>('all')
-	const [stats, setStats] = useState<ScheduleStats>({ total: 0, completed: 0, pending: 0 })
 	const { sortMode, setSortMode } = useSortState()
 
-	useDidShow(() => {
-		checkLoginGuard()
-	})
-
-	const fetchData = useCallback(async () => {
-		setLoading(true)
-		try {
-			const [data, statsData] = await Promise.all([
-				request<ScheduleItem[]>('/api/schedules', {
-					method: 'GET',
-					data: filter === 'all' ? {} : { filter },
-				}),
-				request<ScheduleStats>('/api/schedules/stats'),
-			])
-			setList(
-				(data || []).map((item) => ({
-					...item,
-					completed: item.completed ?? false,
-				}))
-			)
-			setStats(statsData || { total: 0, completed: 0, pending: 0 })
-		} catch (err) {
-			console.error('获取日程列表失败', err)
-		} finally {
-			setLoading(false)
+	const fetchScheduleData = useCallback(async (): Promise<ScheduleData> => {
+		const [data, statsData] = await Promise.all([
+			request<ScheduleItem[]>('/api/schedules', {
+				method: 'GET',
+				data: filter === 'all' ? {} : { filter },
+			}),
+			request<ScheduleStats>('/api/schedules/stats'),
+		])
+		return {
+			list: (data || []).map((item) => ({
+				...item,
+				completed: item.completed ?? false,
+			})),
+			stats: statsData || { total: 0, completed: 0, pending: 0 },
 		}
 	}, [filter])
 
-	useEffect(() => {
-		fetchData()
-	}, [fetchData])
+	const { loading, data, refresh } = useAsyncState<ScheduleData>(fetchScheduleData, [filter])
+
+	usePageGuard()
+
+	const list = data?.list ?? []
+	const stats = data?.stats ?? { total: 0, completed: 0, pending: 0 }
 
 	const handleToggle = useCallback(
 		async (item: ScheduleItem) => {
@@ -86,13 +80,13 @@ export default function Schedule() {
 					: `/api/schedules/${item.id}/complete`
 				await request<ScheduleItem>(url, { method: 'PUT' })
 				const toastTitle = item.completed ? '已撤销完成' : '已标记完成'
-				Taro.showToast({ title: toastTitle, icon: 'success', duration: 1500 })
-				fetchData()
+				showToastSuccess(toastTitle, 1500)
+				refresh()
 			} catch (err) {
 				console.error('操作失败', err)
 			}
 		},
-		[fetchData]
+		[refresh],
 	)
 
 	const grouped = useMemo(() => {

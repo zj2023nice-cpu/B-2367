@@ -54,3 +54,11 @@ export const resolveImageUrl = (url: string | undefined): string => {
 
 	return url
 }
+
+export function safeNum(val: unknown, fallback = 0): number {
+	return typeof val === 'number' && Number.isFinite(val) ? val : fallback
+}
+
+export function safeStr(val: unknown, fallback = ''): string {
+	return typeof val === 'string' ? val : fallback
+}

@@ -11,6 +11,7 @@ import {
 	mergeBatchResults,
 } from '../../utils/batchGeocodeResolve'
 import type { MarkerItem, FailedItem, BatchGeocodeItem } from '../../utils/batchGeocodeResolve'
+import { showToastError } from '../../utils/toast'
 import './index.scss'
 
 interface GeocodeResult {
@@ -94,7 +95,7 @@ export default function MapPage() {
 		} catch (err) {
 			console.error('地理编码失败', err)
 			setError('地址解析失败')
-			Taro.showToast({ title: '地址解析失败', icon: 'none', duration: 2000 })
+			showToastError('地址解析失败', 2000)
 		} finally {
 			setLoading(false)
 		}
@@ -144,7 +145,7 @@ export default function MapPage() {
 		} catch (err) {
 			console.error('批量地理编码失败', err)
 			setError('批量地址解析失败')
-			Taro.showToast({ title: '批量地址解析失败', icon: 'none', duration: 2000 })
+			showToastError('批量地址解析失败', 2000)
 		} finally {
 			setLoading(false)
 		}

@@ -1,9 +1,11 @@
 import { useState, useRef } from 'react'
 import { View, Image, Text, Input, Button, Textarea } from '@tarojs/components'
-import Taro, { useDidShow } from '@tarojs/taro'
+import Taro from '@tarojs/taro'
 import { request } from '../../services/request'
-import { checkLoginGuard, clearLogin } from '../../utils/auth'
+import { clearLogin } from '../../utils/auth'
 import { resolveImageUrl } from '../../utils/common'
+import { usePageGuard } from '../../utils/usePageGuard'
+import { showToastSuccess, showToastError } from '../../utils/toast'
 import './index.scss'
 
 const EMOJI_ONLY_RE = /^[\p{Emoji_Presentation}\p{Extended_Pictographic}\s]*$/u
@@ -50,11 +52,6 @@ export default function User() {
 	const [restoring, setRestoring] = useState(false)
 	const pauseProfileSyncRef = useRef(false)
 
-	useDidShow(() => {
-		checkLoginGuard()
-		fetchProfile()
-	})
-
 	const fetchProfile = async (force = false) => {
 		try {
 			const data = await request<{ nickname: string; avatarUrl: string; bio: string }>('/api/user/profile')
@@ -67,6 +64,10 @@ export default function User() {
 			console.error('获取用户资料失败', err)
 		}
 	}
+
+	usePageGuard(() => {
+		fetchProfile()
+	})
 
 	const buildPayload = (overrides: Partial<{ nickname: string; avatarUrl: string; bio: string }> = {}) => {
 		const safeNickname = sanitizeNickname(overrides.nickname ?? nickname)
@@ -91,7 +92,7 @@ export default function User() {
 				const safeNickname = sanitizeNickname(nickname) || '游客'
 
 				if (safeNickname.length < 2 || safeNickname.length > 12 || EMOJI_ONLY_RE.test(safeNickname)) {
-					Taro.showToast({ title: '请先设置合法昵称', icon: 'none' })
+					showToastError('请先设置合法昵称')
 					return
 				}
 
@@ -107,9 +108,9 @@ export default function User() {
 				await fetchProfile(true)
 
 				if (isWxfilePreview(tempPath)) {
-					Taro.showToast({ title: '头像预览已保存，正式头像需上传至服务器', icon: 'none' })
+					showToastError('头像预览已保存，正式头像需上传至服务器')
 				} else {
-					Taro.showToast({ title: '头像已更新', icon: 'success' })
+					showToastSuccess('头像已更新')
 				}
 			}
 		} catch (err: any) {
@@ -131,7 +132,7 @@ export default function User() {
 	const saveNickname = async () => {
 		const error = validateNickname(tempNickname)
 		if (error) {
-			Taro.showToast({ title: error, icon: 'none' })
+			showToastError(error)
 			return
 		}
 
@@ -145,7 +146,7 @@ export default function User() {
 			})
 			await fetchProfile(true)
 			setEditingNickname(false)
-			Taro.showToast({ title: '保存成功', icon: 'success' })
+			showToastSuccess('保存成功')
 		} catch (err) {
 			console.error('保存昵称失败', err)
 			await fetchProfile(true)
@@ -163,7 +164,7 @@ export default function User() {
 	const saveBio = async () => {
 		const error = validateBio(tempBio)
 		if (error) {
-			Taro.showToast({ title: error, icon: 'none' })
+			showToastError(error)
 			return
 		}
 
@@ -177,7 +178,7 @@ export default function User() {
 			})
 			await fetchProfile(true)
 			setEditingBio(false)
-			Taro.showToast({ title: '保存成功', icon: 'success' })
+			showToastSuccess('保存成功')
 		} catch (err) {
 			console.error('保存简介失败', err)
 			await fetchProfile(true)
@@ -219,10 +220,10 @@ export default function User() {
 					} else {
 						await fetchProfile(true)
 					}
-					Taro.showToast({ title: '已恢复默认资料', icon: 'success' })
+					showToastSuccess('已恢复默认资料')
 				} catch (err) {
 					console.error('恢复默认资料失败', err)
-					Taro.showToast({ title: '恢复失败，请重试', icon: 'none' })
+					showToastError('恢复失败，请重试')
 					await fetchProfile(true)
 				} finally {
 					pauseProfileSyncRef.current = false

@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { View, ScrollView, Image, Text, Button, Input } from '@tarojs/components'
-import Taro, { useDidShow } from '@tarojs/taro'
+import Taro from '@tarojs/taro'
 import { request } from '../../services/request'
-import { checkLoginGuard } from '../../utils/auth'
 import { resolveImageUrl } from '../../utils/common'
 import { invalidateCacheByAddresses } from '../../utils/geocodeCache'
 import {
@@ -12,6 +11,9 @@ import {
 	recordVisit,
 } from '../../utils/favoriteStore'
 import { recordRecentVisit } from '../../utils/recentVisitStore'
+import { usePageGuard } from '../../utils/usePageGuard'
+import { useSafeAction } from '../../utils/useSafeAction'
+import { showToastError } from '../../utils/toast'
 import './index.scss'
 
 interface SpecialtyItem {
@@ -57,17 +59,15 @@ export default function Specialties() {
 	const [savingMap, setSavingMap] = useState<Map<number, SavingState>>(new Map())
 	const [searchText, setSearchText] = useState('')
 	const requestIdRef = useRef(0)
-	const saveRequestIdRef = useRef(0)
-	const savingIdRef = useRef<number | null>(null)
 	const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+	const { startAction, isStale, finishAction, isBusy } = useSafeAction()
 
 	const refreshFavoriteState = useCallback(() => {
 		setFavoriteIds(loadFavoriteIds())
 		setFavCount(getFavoriteCount())
 	}, [])
 
-	useDidShow(() => {
-		checkLoginGuard()
+	usePageGuard(() => {
 		refreshFavoriteState()
 	})
 
@@ -151,7 +151,7 @@ export default function Specialties() {
 	}
 
 	const startEdit = (item: SpecialtyItem) => {
-		if (savingIdRef.current !== null) return
+		if (isBusy()) return
 		if (savingMap.has(item.id)) return
 		setEditingMap((prev) => {
 			const next = new Map(prev)
@@ -166,7 +166,7 @@ export default function Specialties() {
 		const trimmed = editing.value.trim()
 
 		if (!trimmed) {
-			Taro.showToast({ title: '地址不能为空', icon: 'none' })
+			showToastError('地址不能为空')
 			const original = list.find((i) => i.id === itemId)
 			if (original) {
 				setEditingMap((prev) => {
@@ -178,7 +178,7 @@ export default function Specialties() {
 			return
 		}
 		if (trimmed.length > MAX_ADDRESS_LEN) {
-			Taro.showToast({ title: `地址不超过${MAX_ADDRESS_LEN}字`, icon: 'none' })
+			showToastError(`地址不超过${MAX_ADDRESS_LEN}字`)
 			return
 		}
 		const original = list.find((i) => i.id === itemId)
@@ -191,10 +191,8 @@ export default function Specialties() {
 			return
 		}
 
-		if (savingIdRef.current !== null) return
-
-		const currentRequestId = ++saveRequestIdRef.current
-		savingIdRef.current = itemId
+		const currentRequestId = startAction(itemId)
+		if (currentRequestId < 0) return
 
 		const originalAddress = original ? original.address : ''
 		setSavingMap((prev) => {
@@ -214,9 +212,7 @@ export default function Specialties() {
 				data: { address: trimmed },
 			})
 
-			if (savingIdRef.current !== itemId || saveRequestIdRef.current !== currentRequestId) {
-				return
-			}
+			if (isStale(itemId, currentRequestId)) return
 
 			invalidateCacheByAddresses([originalAddress, trimmed])
 
@@ -225,11 +221,9 @@ export default function Specialties() {
 				prev.map((i) => (i.id === itemId ? { ...i, address: newAddress } : i)),
 			)
 		} catch {
-			if (savingIdRef.current !== itemId || saveRequestIdRef.current !== currentRequestId) {
-				return
-			}
+			if (isStale(itemId, currentRequestId)) return
 
-			Taro.showToast({ title: '保存失败', icon: 'none' })
+			showToastError('保存失败')
 
 			setList((prev) =>
 				prev.map((i) => (i.id === itemId ? { ...i, address: originalAddress } : i)),
@@ -240,17 +234,17 @@ export default function Specialties() {
 				return next
 			})
 		} finally {
-			if (savingIdRef.current === itemId) {
-				savingIdRef.current = null
+			const own = finishAction(itemId, currentRequestId)
+			if (own) {
+				setSavingMap((prev) => {
+					const next = new Map(prev)
+					const entry = next.get(itemId)
+					if (entry && entry.requestId === currentRequestId) {
+						next.delete(itemId)
+					}
+					return next
+				})
 			}
-			setSavingMap((prev) => {
-				const next = new Map(prev)
-				const entry = next.get(itemId)
-				if (entry && entry.requestId === currentRequestId) {
-					next.delete(itemId)
-				}
-				return next
-			})
 		}
 	}
 
@@ -265,7 +259,7 @@ export default function Specialties() {
 	const goToMapAll = () => {
 		const addresses = displayList.map((item) => item.address).filter(Boolean)
 		if (addresses.length === 0) {
-			Taro.showToast({ title: '暂无地址可查看', icon: 'none' })
+			showToastError('暂无地址可查看')
 			return
 		}
 		if (addresses.length === 1) {
