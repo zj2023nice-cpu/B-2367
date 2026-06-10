@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { View, Input, Button, Text } from '@tarojs/components'
-import Taro from '@tarojs/taro'
+import Taro, { useDidShow, useDidHide } from '@tarojs/taro'
 import {
 	setLogin,
 	getLoginFailCount,
@@ -64,6 +64,19 @@ export default function Login() {
 			setCountdown(sec)
 		}, 1000)
 	}, [stopCountdown])
+
+	useDidHide(() => {
+		stopCountdown()
+	})
+
+	useDidShow(() => {
+		if (isLoginLocked()) {
+			startCountdown(getLoginLockRemaining())
+		} else {
+			setLocked(false)
+			setCountdown(0)
+		}
+	})
 
 	useEffect(() => {
 		if (isLoginLocked()) {
