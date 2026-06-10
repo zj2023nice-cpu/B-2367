@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
 import { View, ScrollView, Image, Text } from '@tarojs/components'
 import { request } from '../../services/request'
 import { resolveImageUrl } from '../../utils/common'
@@ -67,7 +67,14 @@ export default function Schedule() {
 
 	const { loading, data, refresh } = useAsyncState<ScheduleData>(fetchScheduleData, [filter])
 
-	usePageGuard()
+	const firstShowRef = useRef(true)
+	usePageGuard(() => {
+		if (firstShowRef.current) {
+			firstShowRef.current = false
+			return
+		}
+		refresh()
+	})
 
 	const list = data?.list ?? []
 	const stats = data?.stats ?? { total: 0, completed: 0, pending: 0 }

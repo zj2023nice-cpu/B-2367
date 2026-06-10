@@ -28,8 +28,8 @@ export function useAsyncState<T>(
 		} catch (err: any) {
 			if (requestIdRef.current !== rid) return
 			const msg = err?.message || ''
+			setData(null)
 			setError(msg)
-			throw err
 		} finally {
 			if (requestIdRef.current === rid) {
 				setLoading(false)
