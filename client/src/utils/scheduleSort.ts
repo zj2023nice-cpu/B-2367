@@ -61,7 +61,7 @@ export function groupByMonth<T extends SortableItem>(list: T[]): Map<string, T[]
 		if (parsed.valid && parsed.year !== null && parsed.month !== null) {
 			key = `${parsed.year}年${String(parsed.month).padStart(2, '0')}月`
 		} else {
-			key = '未知日期'
+			key = '未识别日期'
 		}
 		if (!groups.has(key)) {
 			groups.set(key, [])
@@ -70,4 +70,12 @@ export function groupByMonth<T extends SortableItem>(list: T[]): Map<string, T[]
 	}
 
 	return groups
+}
+
+export function groupSortedScheduleList<T extends SortableItem>(
+	list: T[],
+	mode: SortMode
+): Map<string, T[]> {
+	const sorted = sortScheduleList(list, mode)
+	return groupByMonth(sorted)
 }

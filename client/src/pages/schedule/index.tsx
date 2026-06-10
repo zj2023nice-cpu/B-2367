@@ -5,7 +5,7 @@ import Taro from '@tarojs/taro'
 import { request } from '../../services/request'
 import { checkLoginGuard } from '../../utils/auth'
 import { resolveImageUrl } from '../../utils/common'
-import { sortScheduleList, type SortMode } from '../../utils/scheduleSort'
+import { groupSortedScheduleList, type SortMode } from '../../utils/scheduleSort'
 import { useSortState } from '../../utils/useSortState'
 import './index.scss'
 
@@ -95,8 +95,8 @@ export default function Schedule() {
 		[fetchData]
 	)
 
-	const sortedList = useMemo(() => {
-		return sortScheduleList(list, sortMode)
+	const grouped = useMemo(() => {
+		return groupSortedScheduleList(list, sortMode)
 	}, [list, sortMode])
 
 	const completedPercent =
@@ -156,50 +156,57 @@ export default function Schedule() {
 			) : (
 				<ScrollView scrollY className='schedule-list'>
 					<View className='schedule-list-inner'>
-						{sortedList.map((item, index) => (
-							<View
-								key={item.id}
-								className={`schedule-card ${item.completed ? 'schedule-card--completed' : ''}`}
-							>
-								<View className='schedule-timeline'>
+						{Array.from(grouped.entries()).map(([monthKey, items]) => (
+							<View key={monthKey} className='schedule-month-group'>
+								<View className='schedule-month-header'>
+									<Text>{monthKey}</Text>
+								</View>
+								{items.map((item, index) => (
 									<View
-										className={`timeline-dot ${item.completed ? 'timeline-dot--completed' : ''}`}
-									/>
-									{index < sortedList.length - 1 && <View className='timeline-line' />}
-								</View>
-								<View className='schedule-content'>
-									<View className='schedule-date-tag'>{item.dateText}</View>
-									<Image
-										className={`schedule-img ${item.completed ? 'schedule-img--completed' : ''}`}
-										src={resolveImageUrl(item.imageUrl)}
-										mode='aspectFill'
-									/>
-									<View className='schedule-text'>
-										<Text
-											className={`schedule-title ${item.completed ? 'schedule-title--completed' : ''}`}
-										>
-											{item.title}
-										</Text>
-										<Text
-											className={`schedule-desc ${item.completed ? 'schedule-desc--completed' : ''}`}
-										>
-											{item.description}
-										</Text>
-									</View>
-									<View className='schedule-action'>
-										<View
-											className={`toggle-btn ${item.completed ? 'toggle-btn--undo' : 'toggle-btn--complete'}`}
-											onClick={() => handleToggle(item)}
-										>
-											<Text>{item.completed ? '撤销完成' : '标记完成'}</Text>
+										key={item.id}
+										className={`schedule-card ${item.completed ? 'schedule-card--completed' : ''}`}
+									>
+										<View className='schedule-timeline'>
+											<View
+												className={`timeline-dot ${item.completed ? 'timeline-dot--completed' : ''}`}
+											/>
+											{index < items.length - 1 && <View className='timeline-line' />}
 										</View>
-										{item.completed && item.completedAt && (
-											<Text className='completed-time'>
-												{new Date(item.completedAt).toLocaleDateString('zh-CN')}
-											</Text>
-										)}
+										<View className='schedule-content'>
+											<View className='schedule-date-tag'>{item.dateText}</View>
+											<Image
+												className={`schedule-img ${item.completed ? 'schedule-img--completed' : ''}`}
+												src={resolveImageUrl(item.imageUrl)}
+												mode='aspectFill'
+											/>
+											<View className='schedule-text'>
+												<Text
+													className={`schedule-title ${item.completed ? 'schedule-title--completed' : ''}`}
+												>
+													{item.title}
+												</Text>
+												<Text
+													className={`schedule-desc ${item.completed ? 'schedule-desc--completed' : ''}`}
+												>
+													{item.description}
+												</Text>
+											</View>
+											<View className='schedule-action'>
+												<View
+													className={`toggle-btn ${item.completed ? 'toggle-btn--undo' : 'toggle-btn--complete'}`}
+													onClick={() => handleToggle(item)}
+												>
+													<Text>{item.completed ? '撤销完成' : '标记完成'}</Text>
+												</View>
+												{item.completed && item.completedAt && (
+													<Text className='completed-time'>
+														{new Date(item.completedAt).toLocaleDateString('zh-CN')}
+													</Text>
+												)}
+											</View>
+										</View>
 									</View>
-								</View>
+								))}
 							</View>
 						))}
 					</View>
