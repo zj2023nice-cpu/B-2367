@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
+import { validateEnv } from './common/config-validation';
 import { Specialty } from './specialties/specialty.entity';
 import { Schedule } from './schedule/schedule.entity';
 import { UserProfile } from './user/user-profile.entity';
@@ -17,6 +18,7 @@ import { OverviewModule } from './overview/overview.module';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: join(__dirname, '..', '.env'),
+      validate: validateEnv,
     }),
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'public'),
@@ -25,7 +27,7 @@ import { OverviewModule } from './overview/overview.module';
     TypeOrmModule.forRoot({
       type: 'sqljs',
       autoSave: true,
-      location: join(__dirname, '..', 'data', 'app.db'),
+      location: join(__dirname, '..', process.env.DB_PATH || 'data/app.db'),
       entities: [Specialty, Schedule, UserProfile],
       synchronize: true,
       logging: false,

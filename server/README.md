@@ -1,98 +1,166 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# 特产日程 — 服务端
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+特产日程项目的 NestJS 后端，提供特产 CRUD、日程管理、用户资料、地图地理编码与总览统计等 REST API。数据库使用 SQL.js（SQLite 的纯 JS 实现），零外部依赖即可启动。
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## 目录结构
 
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
-
-```bash
-$ npm install
+```
+server/
+├── src/
+│   ├── common/
+│   │   ├── config-validation.ts   # 环境变量启动校验
+│   │   ├── filters/               # 全局异常过滤器
+│   │   └── interceptors/          # 全局响应拦截器
+│   ├── database/
+│   │   ├── seed.ts                # Seed 数据初始化与旧数据自动修复
+│   │   └── seed.spec.ts
+│   ├── map/                       # 腾讯地图地理编码服务
+│   ├── overview/                  # 首页总览统计
+│   ├── schedule/                  # 日程管理
+│   ├── specialties/               # 特产管理
+│   ├── user/                      # 用户资料
+│   ├── app.module.ts
+│   └── main.ts
+├── public/images/                 # 静态图片资源
+├── data/                          # SQLite 数据库文件（运行时生成）
+├── .env.example                   # 环境变量示例
+├── .env                           # 本地环境变量（不提交）
+└── Dockerfile
 ```
 
-## Compile and run the project
+## 快速开始
+
+### 1. 安装依赖
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+cd server
+npm install
 ```
 
-## Run tests
+### 2. 配置环境变量
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+cp .env.example .env
 ```
 
-## Deployment
+编辑 `.env`，至少填写 `TENCENT_MAP_KEY`：
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+| 变量 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `TENCENT_MAP_KEY` | 否 | — | 腾讯地图 WebService API Key。未配置时服务可启动，但 geocode 接口返回 500 |
+| `PORT` | 否 | `3001` | 服务监听端口，1–65535 整数 |
+| `DB_PATH` | 否 | `data/app.db` | SQLite 数据库文件路径，相对于 server 根目录 |
+| `CORS_ORIGIN` | 否 | 允许所有来源 | 跨域允许的 origin，生产环境建议设置 |
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+> 腾讯地图 Key 申请地址：<https://lbs.qq.com/dev/console/application/mine>
+
+### 3. 启动开发服务
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+npm run start:dev
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+首次启动会自动执行 Seed 初始化（见下方 Seed 行为说明）。
 
-## Resources
+### 4. 生产构建
 
-Check out a few resources that may come in handy when working with NestJS:
+```bash
+npm run build
+npm run start:prod
+```
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+## 常用脚本
 
-## Support
+| 脚本 | 说明 |
+|------|------|
+| `npm run start:dev` | 开发模式，文件变更自动重启 |
+| `npm run start` | 普通启动（需先 build） |
+| `npm run start:prod` | 生产模式（运行 `dist/main.js`） |
+| `npm run build` | 编译 TypeScript 到 `dist/` |
+| `npm run test` | 运行单元测试 |
+| `npm run test:e2e` | 运行端到端测试 |
+| `npm run lint` | ESLint 检查并自动修复 |
+| `npm run format` | Prettier 格式化 |
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+## API 路由一览
 
-## Stay in touch
+| 模块 | 路由 | 说明 |
+|------|------|------|
+| 特产 | `GET /api/specialties` | 列表查询（支持 `region` 筛选） |
+| 特产 | `PUT /api/specialties/:id/address` | 更新特产地址 |
+| 日程 | `GET /api/schedules` | 列表查询（支持 `filter=completed/pending`） |
+| 日程 | `GET /api/schedules/stats` | 日程完成统计 |
+| 日程 | `PUT /api/schedules/:id/complete` | 标记完成 |
+| 日程 | `PUT /api/schedules/:id/undo` | 撤销完成 |
+| 用户 | `GET /api/user/profile` | 获取用户资料 |
+| 用户 | `PUT /api/user/profile` | 更新用户资料 |
+| 用户 | `POST /api/user/profile/reset` | 恢复默认资料 |
+| 地图 | `GET /api/map/geocode?address=xxx` | 单条地理编码 |
+| 地图 | `POST /api/map/geocode/batch` | 批量地理编码 |
+| 总览 | `GET /api/overview` | 首页统计数据 |
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+## Seed 行为
 
-## License
+服务每次启动时自动运行 `seedDatabase()`，逻辑如下：
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+1. **特产 Seed**：表为空时插入 8 条默认特产数据；为历史无 `region` 字段的记录自动补全
+2. **日程 Seed**：表为空时插入 7 条默认日程；若检测到旧版占位数据或通用默认数据（如标题为"抵达目的地""城市地标游览"等），自动清除并替换为新默认数据；为旧日程补全 `completed` 字段
+3. **用户资料 Seed**：表为空时插入默认游客资料（nickname: 游客）
+
+> **注意**：Seed 仅在数据为空或检测到旧数据时执行，不会覆盖已有正常数据。如需重置，删除 `data/app.db` 后重启服务即可。
+
+## 地图 Key 说明
+
+- 地理编码使用腾讯位置服务 WebService API
+- `TENCENT_MAP_KEY` 在 `.env` 中配置
+- 未配置或值为 `YOUR_KEY_HERE` 时，服务启动会打印警告，geocode 接口请求返回 500
+- Key 配额限制请查看腾讯地图控制台
+- 批量地理编码默认并发数为 4，可在 `MapService.batchGeocode()` 中调整
+
+## 数据库
+
+- 类型：SQL.js（SQLite 的 WebAssembly/纯 JS 实现）
+- 位置：由 `DB_PATH` 环境变量控制，默认 `data/app.db`
+- `synchronize: true`：Entity 变更自动同步表结构（开发便利，生产环境慎用）
+- 数据库文件在 `server/.gitignore` 中被忽略，不会提交到仓库
+- Docker 部署时通过 volume 持久化数据（见 `docker-compose.yml`）
+
+## 环境变量校验
+
+服务启动时通过 `ConfigModule.forRoot({ validate })` 执行环境变量校验：
+
+- `PORT` 不为 1–65535 整数时，启动失败并给出明确提示
+- `TENCENT_MAP_KEY` 未配置或为占位值时，打印警告但不阻止启动
+- 校验失败时错误信息会提示「请复制 `.env.example` 为 `.env` 并按提示填写」
+
+## Docker 部署
+
+```bash
+# 根目录下
+docker compose up -d
+```
+
+- 端口映射 `3001:3001`
+- 数据持久化到 Docker volume `server-data`
+- 环境变量通过 `server/.env` 注入
+- 健康检查：每 30s 请求 `/api/specialties`
+
+## 已知限制
+
+1. **数据库单写**：SQL.js 不支持多进程并发写入，适合单实例部署
+2. **Seed 不可定制**：默认数据硬编码在 `seed.ts` 中，无法通过配置文件覆盖
+3. **无鉴权**：用户接口无登录鉴权，`X-Token` 仅做客户端标识
+4. **地图 API 限流**：腾讯地图免费配额有限，批量地理编码需注意调用量
+5. **CORS 默认全开**：不设置 `CORS_ORIGIN` 时允许所有来源，生产环境需收紧
+
+## 常见排错
+
+| 现象 | 可能原因 | 解决方式 |
+|------|----------|----------|
+| 启动报错 `环境变量校验失败` | PORT 等必填项配置异常 | 检查 `.env` 文件，对照 `.env.example` 修正 |
+| geocode 接口返回 500 | 未配置 `TENCENT_MAP_KEY` | 在 `.env` 中设置有效 Key |
+| 日志显示 `腾讯地图 API 错误` | Key 无效或配额耗尽 | 检查 Key 是否正确，查看腾讯地图控制台配额 |
+| 数据库文件不存在 | 首次运行 | 正常现象，启动时自动创建 `data/app.db` |
+| 旧日程数据未更新 | Seed 仅处理空表或旧格式数据 | 删除 `data/app.db` 重启，或手动通过 API 修改 |
+| Docker 容器重启丢数据 | 未挂载 volume | 确认 `docker-compose.yml` 中 `server-data` volume 配置正确 |
+| CORS 预检失败 | 浏览器 H5 调试跨域被拒 | 开发时无需设置；生产环境在 `.env` 中配置 `CORS_ORIGIN` |
