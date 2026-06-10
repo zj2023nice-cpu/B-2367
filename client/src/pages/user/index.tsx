@@ -33,8 +33,6 @@ function validateBio(raw: string): string | null {
 	return null
 }
 
-const DEFAULT_PROFILE = { nickname: '游客', avatarUrl: '', bio: '' } as const
-
 function isWxfilePreview(url: string): boolean {
 	return /^wxfile:\/\//i.test(url)
 }
@@ -57,10 +55,10 @@ export default function User() {
 		fetchProfile()
 	})
 
-	const fetchProfile = async () => {
+	const fetchProfile = async (force = false) => {
 		try {
 			const data = await request<{ nickname: string; avatarUrl: string; bio: string }>('/api/user/profile')
-			if (data && !pauseProfileSyncRef.current) {
+			if (data && (force || !pauseProfileSyncRef.current)) {
 				setNickname(data.nickname)
 				setAvatarUrl(data.avatarUrl || '')
 				setBio(data.bio || '')
@@ -80,7 +78,6 @@ export default function User() {
 	const chooseAvatar = async () => {
 		if (updatingAvatar || restoring) return
 
-		let previewApplied = false
 		setUpdatingAvatar(true)
 
 		try {
@@ -99,8 +96,6 @@ export default function User() {
 				}
 
 				pauseProfileSyncRef.current = true
-				setAvatarUrl(tempPath)
-				previewApplied = true
 
 				const payload = buildPayload({ avatarUrl: tempPath })
 
@@ -109,7 +104,7 @@ export default function User() {
 					data: payload,
 				})
 
-				setNickname(safeNickname)
+				await fetchProfile(true)
 
 				if (isWxfilePreview(tempPath)) {
 					Taro.showToast({ title: '头像预览已保存，正式头像需上传至服务器', icon: 'none' })
@@ -120,10 +115,7 @@ export default function User() {
 		} catch (err: any) {
 			if (err.errMsg && err.errMsg.indexOf('cancel') !== -1) return
 			console.error('选择头像失败', err)
-			if (previewApplied) {
-				pauseProfileSyncRef.current = false
-				await fetchProfile()
-			}
+			await fetchProfile(true)
 		} finally {
 			pauseProfileSyncRef.current = false
 			setUpdatingAvatar(false)
@@ -151,11 +143,12 @@ export default function User() {
 				method: 'PUT',
 				data: payload,
 			})
-			setNickname(sanitized)
+			await fetchProfile(true)
 			setEditingNickname(false)
 			Taro.showToast({ title: '保存成功', icon: 'success' })
 		} catch (err) {
 			console.error('保存昵称失败', err)
+			await fetchProfile(true)
 		} finally {
 			setSaving(false)
 		}
@@ -182,11 +175,12 @@ export default function User() {
 				method: 'PUT',
 				data: payload,
 			})
-			setBio(sanitized)
+			await fetchProfile(true)
 			setEditingBio(false)
 			Taro.showToast({ title: '保存成功', icon: 'success' })
 		} catch (err) {
 			console.error('保存简介失败', err)
+			await fetchProfile(true)
 		} finally {
 			setSaving(false)
 		}
@@ -210,22 +204,26 @@ export default function User() {
 				if (!res.confirm) return
 
 				setRestoring(true)
-				pauseProfileSyncRef.current = true
 				setEditingNickname(false)
 				setEditingBio(false)
+				pauseProfileSyncRef.current = true
 
 				try {
-					await request<{ nickname: string; avatarUrl: string; bio: string }>('/api/user/profile/reset', {
+					const data = await request<{ nickname: string; avatarUrl: string; bio: string }>('/api/user/profile/reset', {
 						method: 'POST',
 					})
-					setNickname(DEFAULT_PROFILE.nickname)
-					setAvatarUrl(DEFAULT_PROFILE.avatarUrl)
-					setBio(DEFAULT_PROFILE.bio)
+					if (data) {
+						setNickname(data.nickname)
+						setAvatarUrl(data.avatarUrl || '')
+						setBio(data.bio || '')
+					} else {
+						await fetchProfile(true)
+					}
 					Taro.showToast({ title: '已恢复默认资料', icon: 'success' })
 				} catch (err) {
 					console.error('恢复默认资料失败', err)
 					Taro.showToast({ title: '恢复失败，请重试', icon: 'none' })
-					await fetchProfile()
+					await fetchProfile(true)
 				} finally {
 					pauseProfileSyncRef.current = false
 					setRestoring(false)
