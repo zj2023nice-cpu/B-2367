@@ -24,6 +24,9 @@ export class Specialty {
   @Column({ type: 'text' })
   address: string;
 
+  @Column({ type: 'text', default: '' })
+  region: string;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

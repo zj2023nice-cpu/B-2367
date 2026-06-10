@@ -19,6 +19,7 @@ interface SpecialtyItem {
 	description: string
 	imageUrl: string
 	address: string
+	region: string
 }
 
 interface QueryState {
@@ -360,6 +361,11 @@ export default function Specialties() {
 									<View className='specialty-info'>
 										<View className='specialty-title-row'>
 											<Text className='specialty-title'>{item.title}</Text>
+											{item.region && (
+												<View className='specialty-region-tag'>
+													<Text className='specialty-region-text'>{item.region}</Text>
+												</View>
+											)}
 										</View>
 										<Text className='specialty-desc'>{item.description}</Text>
 										<View className='specialty-footer'>

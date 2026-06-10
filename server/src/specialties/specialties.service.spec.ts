@@ -60,12 +60,12 @@ describe('SpecialtiesService', () => {
     expect(mockQb.andWhere).not.toHaveBeenCalled();
   });
 
-  it('splits region by comma and filters address with OR', async () => {
+  it('splits region by comma and filters with IN clause', async () => {
     const dto: QuerySpecialtyDto = { region: '北京,天津' };
     await service.findAll(dto);
     expect(mockQb.andWhere).toHaveBeenCalledWith(
-      '(s.address LIKE :region0 OR s.address LIKE :region1)',
-      { region0: '%北京%', region1: '%天津%' },
+      's.region IN (:...regions)',
+      { regions: ['北京', '天津'] },
     );
   });
 
@@ -73,8 +73,8 @@ describe('SpecialtiesService', () => {
     const dto: QuerySpecialtyDto = { region: '北京,,天津,' };
     await service.findAll(dto);
     expect(mockQb.andWhere).toHaveBeenCalledWith(
-      '(s.address LIKE :region0 OR s.address LIKE :region1)',
-      { region0: '%北京%', region1: '%天津%' },
+      's.region IN (:...regions)',
+      { regions: ['北京', '天津'] },
     );
   });
 

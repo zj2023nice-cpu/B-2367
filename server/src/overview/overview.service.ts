@@ -5,7 +5,6 @@ import { Specialty } from '../specialties/specialty.entity';
 import { Schedule } from '../schedule/schedule.entity';
 import { UserProfile } from '../user/user-profile.entity';
 import { parseDateText } from './date-parser';
-import { countDistinctRegions } from './region-extractor';
 
 export interface OverviewLatestSchedule {
   id: number;
@@ -75,7 +74,7 @@ export class OverviewService {
 
     const [
       specialtyCountResult,
-      addressRowsResult,
+      regionCountResult,
       scheduleCountResult,
       scheduleRowsResult,
       defaultProfileResult,
@@ -84,8 +83,9 @@ export class OverviewService {
       this.specialtyRepo.count(),
       this.specialtyRepo
         .createQueryBuilder('s')
-        .select('s.address', 'address')
-        .getRawMany(),
+        .select('COUNT(DISTINCT s.region)', 'cnt')
+        .where("s.region IS NOT NULL AND s.region != ''")
+        .getRawOne(),
       this.scheduleRepo.count(),
       this.scheduleRepo
         .createQueryBuilder('sc')
@@ -99,12 +99,10 @@ export class OverviewService {
     const specialtyCount =
       specialtyCountResult.status === 'fulfilled' ? specialtyCountResult.value : 0;
 
-    const addressRows =
-      addressRowsResult.status === 'fulfilled' ? addressRowsResult.value : [];
-    const addresses = addressRows.map(
-      (row: { address?: string }) => row.address ?? '',
-    );
-    const regionCount = countDistinctRegions(addresses);
+    const regionCount =
+      regionCountResult.status === 'fulfilled'
+        ? Number(regionCountResult.value?.cnt ?? 0)
+        : 0;
 
     const scheduleCount =
       scheduleCountResult.status === 'fulfilled' ? scheduleCountResult.value : 0;

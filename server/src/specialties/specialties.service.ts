@@ -32,11 +32,7 @@ export class SpecialtiesService {
       .map((r) => r.trim())
       .filter(Boolean);
     if (regions?.length) {
-      const conditions = regions.map((_, i) => `s.address LIKE :region${i}`);
-      const params = Object.fromEntries(
-        regions.map((r, i) => [`region${i}`, `%${r}%`]),
-      );
-      qb.andWhere(`(${conditions.join(' OR ')})`, params);
+      qb.andWhere('s.region IN (:...regions)', { regions });
     }
 
     if (query.limit) {

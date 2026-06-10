@@ -11,6 +11,8 @@ import { AppModule } from './../src/app.module';
 import { HttpExceptionFilter } from './../src/common/filters/http-exception.filter';
 import { TransformInterceptor } from './../src/common/interceptors/transform.interceptor';
 import { MapService } from './../src/map/map.service';
+import { seedDatabase } from './../src/database/seed';
+import { DataSource } from 'typeorm';
 
 interface ApiResponse<T> {
   code: number;
@@ -24,6 +26,7 @@ interface SpecialtyDto {
   description: string;
   imageUrl: string;
   address: string;
+  region: string;
 }
 
 interface PaginatedSpecialties {
@@ -52,9 +55,11 @@ interface OverviewRecentSpecialtyDto {
 }
 
 interface OverviewDto {
-  specialtyCount: number;
-  regionCount: number;
-  scheduleCount: number;
+  stats: {
+    specialtyCount: number;
+    regionCount: number;
+    scheduleCount: number;
+  };
   latestSchedule: {
     id: number;
     title: string;
@@ -103,6 +108,9 @@ describe('App (e2e)', () => {
     app.useGlobalFilters(new HttpExceptionFilter());
 
     await app.init();
+
+    const dataSource = app.get(DataSource);
+    await seedDatabase(dataSource);
   });
 
   afterAll(async () => {
@@ -153,7 +161,7 @@ describe('App (e2e)', () => {
     expect(body.data.list.length).toBeGreaterThan(0);
   });
 
-  it('GET /api/specialties?region=北京,天津 filters by region in address', async () => {
+  it('GET /api/specialties?region=北京,天津 filters by region column', async () => {
     const response = await request(app.getHttpServer())
       .get('/api/specialties?region=北京,天津')
       .expect(200);
@@ -163,8 +171,7 @@ describe('App (e2e)', () => {
     expect(body.code).toBe(0);
     expect(body.data.list.length).toBeGreaterThan(0);
     body.data.list.forEach((item) => {
-      const match =
-        item.address.includes('北京') || item.address.includes('天津');
+      const match = item.region === '北京' || item.region === '天津';
       expect(match).toBe(true);
     });
   });
@@ -183,9 +190,8 @@ describe('App (e2e)', () => {
           item.title.includes('北京') ||
           item.description.includes('北京') ||
           item.address.includes('北京');
-        const regionMatch = item.address.includes('北京');
         expect(kwMatch).toBe(true);
-        expect(regionMatch).toBe(true);
+        expect(item.region).toBe('北京');
       });
     }
   });
@@ -254,7 +260,7 @@ describe('App (e2e)', () => {
   });
 
   it('PUT + GET /api/user/profile persists nickname update', async () => {
-    const nickname = `e2e-${Date.now()}`;
+    const nickname = `e2e${Date.now() % 10000}`;
 
     const updateResponse = await request(app.getHttpServer())
       .put('/api/user/profile')
@@ -319,12 +325,12 @@ describe('App (e2e)', () => {
     expect(overviewBody.code).toBe(0);
     expect(overviewBody.message).toBe('ok');
 
-    expect(typeof overviewBody.data.specialtyCount).toBe('number');
-    expect(overviewBody.data.specialtyCount).toBeGreaterThanOrEqual(0);
+    expect(typeof overviewBody.data.stats.specialtyCount).toBe('number');
+    expect(overviewBody.data.stats.specialtyCount).toBeGreaterThanOrEqual(0);
 
-    expect(typeof overviewBody.data.regionCount).toBe('number');
-    expect(typeof overviewBody.data.scheduleCount).toBe('number');
-    expect(overviewBody.data.scheduleCount).toBeGreaterThanOrEqual(0);
+    expect(typeof overviewBody.data.stats.regionCount).toBe('number');
+    expect(typeof overviewBody.data.stats.scheduleCount).toBe('number');
+    expect(overviewBody.data.stats.scheduleCount).toBeGreaterThanOrEqual(0);
 
     expect(typeof overviewBody.data.defaultNickname).toBe('string');
     expect(overviewBody.data.defaultNickname.length).toBeGreaterThan(0);
@@ -338,34 +344,22 @@ describe('App (e2e)', () => {
     const specialtiesBody =
       specialtiesRes.body as ApiResponse<PaginatedSpecialties>;
 
-    const PROVINCE_RE = /^([\u4e00-\u9fa5]{2,4}(?:省|市|自治区|特别行政区))/;
-    const regionsFromAddresses = new Set<string>();
+    const regionsFromData = new Set<string>();
     for (const s of specialtiesBody.data.list) {
-      const m = s.address.match(PROVINCE_RE);
-      regionsFromAddresses.add(m ? m[1] : s.address.substring(0, 2));
+      if (s.region) {
+        regionsFromData.add(s.region);
+      }
     }
 
-    expect(overviewBody.data.regionCount).toBe(regionsFromAddresses.size);
+    expect(overviewBody.data.stats.regionCount).toBe(regionsFromData.size);
 
     const distinctAddresses = new Set(
       specialtiesBody.data.list.map((s) => s.address),
     );
     expect(distinctAddresses.size).toBeGreaterThan(0);
-    expect(overviewBody.data.regionCount).toBeLessThanOrEqual(
+    expect(overviewBody.data.stats.regionCount).toBeLessThanOrEqual(
       distinctAddresses.size,
     );
-    if (regionsFromAddresses.size === distinctAddresses.size) {
-      const grouped = new Map<string, number>();
-      for (const s of specialtiesBody.data.list) {
-        const m = s.address.match(PROVINCE_RE);
-        const region = m ? m[1] : s.address.substring(0, 2);
-        grouped.set(region, (grouped.get(region) ?? 0) + 1);
-      }
-      const hasMultiAddressRegion = Array.from(grouped.values()).some(
-        (c) => c > 1,
-      );
-      expect(hasMultiAddressRegion).toBe(false);
-    }
 
     const schedulesRes = await request(app.getHttpServer())
       .get('/api/schedules')

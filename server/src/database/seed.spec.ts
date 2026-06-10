@@ -43,6 +43,71 @@ describe('seedDatabase', () => {
     expect(schedules.some((item) => item.title.includes('北京'))).toBe(true);
   });
 
+  it('seeds specialties with region for empty database', async () => {
+    await seedDatabase(dataSource);
+
+    const specialties = await dataSource.getRepository(Specialty).find({
+      order: { id: 'ASC' },
+    });
+
+    expect(specialties.length).toBe(8);
+    expect(specialties.every((s) => s.region && s.region.length > 0)).toBe(true);
+    const beijing = specialties.find((s) => s.title === '北京烤鸭');
+    expect(beijing?.region).toBe('北京');
+  });
+
+  it('backfills region for existing specialties without region', async () => {
+    const specialtyRepo = dataSource.getRepository(Specialty);
+
+    await specialtyRepo.save([
+      {
+        title: '北京烤鸭',
+        description: '北京烤鸭',
+        imageUrl: '/images/duck.jpg',
+        address: '北京市东城区王府井大街',
+        region: '',
+      },
+      {
+        title: '杭州龙井茶',
+        description: '西湖龙井',
+        imageUrl: '/images/tea.jpg',
+        address: '浙江省杭州市西湖区龙井路',
+        region: '',
+      },
+    ]);
+
+    await seedDatabase(dataSource);
+
+    const specialties = await specialtyRepo.find({ order: { id: 'ASC' } });
+    expect(specialties.length).toBe(2);
+
+    const beijing = specialties.find((s) => s.title === '北京烤鸭');
+    expect(beijing?.region).toBe('北京');
+
+    const hangzhou = specialties.find((s) => s.title === '杭州龙井茶');
+    expect(hangzhou?.region).toBe('浙江');
+  });
+
+  it('does not overwrite existing region values during backfill', async () => {
+    const specialtyRepo = dataSource.getRepository(Specialty);
+
+    await specialtyRepo.save([
+      {
+        title: '北京烤鸭',
+        description: '北京烤鸭',
+        imageUrl: '/images/duck.jpg',
+        address: '北京市东城区王府井大街',
+        region: '北京',
+      },
+    ]);
+
+    await seedDatabase(dataSource);
+
+    const specialties = await specialtyRepo.find({ order: { id: 'ASC' } });
+    expect(specialties.length).toBe(1);
+    expect(specialties[0].region).toBe('北京');
+  });
+
   it('replaces placeholder schedules with concrete defaults', async () => {
     const scheduleRepo = dataSource.getRepository(Schedule);
 

@@ -3,6 +3,7 @@ import { DataSource } from 'typeorm';
 import { Specialty } from '../specialties/specialty.entity';
 import { Schedule } from '../schedule/schedule.entity';
 import { UserProfile } from '../user/user-profile.entity';
+import { extractRegion } from '../overview/region-extractor';
 
 const logger = new Logger('SeedData');
 
@@ -129,6 +130,7 @@ export async function seedDatabase(dataSource: DataSource): Promise<void> {
           '北京烤鸭是北京最著名的特色美食，皮脆肉嫩、色泽红润，配以薄饼、葱丝和甜面酱食用。',
         imageUrl: '/images/duck.jpg',
         address: '北京市东城区王府井大街',
+        region: '北京',
       },
       {
         title: '天津麻花',
@@ -136,6 +138,7 @@ export async function seedDatabase(dataSource: DataSource): Promise<void> {
           '天津桂发祥十八街麻花，是天津三绝之一，香甜酥脆，有多种口味可选。',
         imageUrl: '/images/mahua.jpg',
         address: '天津市南开区十八街',
+        region: '天津',
       },
       {
         title: '云南鲜花饼',
@@ -143,6 +146,7 @@ export async function seedDatabase(dataSource: DataSource): Promise<void> {
           '云南特产鲜花饼，以可食用玫瑰花入馅制成的酥饼，花香四溢、口感酥软。',
         imageUrl: '/images/flower.jpg',
         address: '云南省昆明市五华区翠湖南路',
+        region: '云南',
       },
       {
         title: '杭州龙井茶',
@@ -150,6 +154,7 @@ export async function seedDatabase(dataSource: DataSource): Promise<void> {
           '西湖龙井是中国十大名茶之一，产于杭州西湖龙井村，色绿、香郁、味甘、形美。',
         imageUrl: '/images/tea.jpg',
         address: '浙江省杭州市西湖区龙井路',
+        region: '浙江',
       },
       {
         title: '成都火锅底料',
@@ -157,6 +162,7 @@ export async function seedDatabase(dataSource: DataSource): Promise<void> {
           '成都火锅底料选用上等辣椒、花椒、牛油等原料熬制，麻辣鲜香，是川味火锅的灵魂。',
         imageUrl: '/images/hotpot.jpg',
         address: '四川省成都市锦江区春熙路',
+        region: '四川',
       },
       {
         title: '西安肉夹馍',
@@ -164,6 +170,7 @@ export async function seedDatabase(dataSource: DataSource): Promise<void> {
           '西安传统名小吃，外皮酥脆、馅料饱满，精选腊汁肉搭配白吉馍，一口下去满嘴留香。',
         imageUrl: '/images/roujiamo.jpg',
         address: '陕西省西安市莲湖区回民街',
+        region: '陕西',
       },
       {
         title: '长沙臭豆腐',
@@ -171,6 +178,7 @@ export async function seedDatabase(dataSource: DataSource): Promise<void> {
           '长沙臭豆腐闻起来臭吃起来香，外焦里嫩，佐以辣椒酱和香菜，回味无穷。',
         imageUrl: '/images/tofu.jpg',
         address: '湖南省长沙市天心区坡子街',
+        region: '湖南',
       },
       {
         title: '广州肠粉',
@@ -178,9 +186,27 @@ export async function seedDatabase(dataSource: DataSource): Promise<void> {
           '广州传统早茶名点，米浆蒸制成薄皮，内裹虾仁、猪肉或鸡蛋，配以酱油食用，滑嫩爽口。',
         imageUrl: '/images/changfen.jpg',
         address: '广东省广州市荔湾区上下九步行街',
+        region: '广东',
       },
     ]);
     logger.log('特产数据初始化完成');
+  }
+
+  const missingRegion = await specialtyRepo
+    .createQueryBuilder('s')
+    .select(['s.id', 's.address'])
+    .where("s.region IS NULL OR s.region = ''")
+    .getMany();
+
+  if (missingRegion.length > 0) {
+    logger.log(`为 ${missingRegion.length} 条历史特产补全 region 字段...`);
+    for (const s of missingRegion) {
+      const region = extractRegion(s.address);
+      if (region) {
+        await specialtyRepo.update(s.id, { region });
+      }
+    }
+    logger.log('历史特产 region 字段补全完成');
   }
 
   // === 日程 Seed（≥6 条） ===
