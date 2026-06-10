@@ -1,7 +1,17 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { View, Input, Button, Text } from '@tarojs/components'
 import Taro from '@tarojs/taro'
-import { setLogin } from '../../utils/auth'
+import {
+	setLogin,
+	getLoginFailCount,
+	setLoginFailCount,
+	setLoginLockExpire,
+	clearLoginLock,
+	isLoginLocked,
+	getLoginLockRemaining,
+	LOGIN_MAX_FAIL,
+	LOGIN_LOCK_SEC,
+} from '../../utils/auth'
 import './index.scss'
 
 const FIXED_USERNAME = 'admin'
@@ -13,17 +23,59 @@ export default function Login() {
 	const [loading, setLoading] = useState(false)
 	const [showPassword, setShowPassword] = useState(false)
 	const [errorMsg, setErrorMsg] = useState('')
+	const [countdown, setCountdown] = useState(0)
+	const [locked, setLocked] = useState(false)
 
 	const timerRef = useRef<ReturnType<typeof setTimeout>[]>([])
+	const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 	const unmountedRef = useRef(false)
 
+	const stopCountdown = useCallback(() => {
+		if (intervalRef.current) {
+			clearInterval(intervalRef.current)
+			intervalRef.current = null
+		}
+	}, [])
+
+	const startCountdown = useCallback((remaining: number) => {
+		stopCountdown()
+		if (remaining <= 0) {
+			setLocked(false)
+			setCountdown(0)
+			return
+		}
+		setLocked(true)
+		setCountdown(remaining)
+
+		intervalRef.current = setInterval(() => {
+			if (unmountedRef.current) {
+				stopCountdown()
+				return
+			}
+			const sec = getLoginLockRemaining()
+			if (sec <= 0) {
+				stopCountdown()
+				clearLoginLock()
+				setLocked(false)
+				setCountdown(0)
+				setErrorMsg('')
+				return
+			}
+			setCountdown(sec)
+		}, 1000)
+	}, [stopCountdown])
+
 	useEffect(() => {
+		if (isLoginLocked()) {
+			startCountdown(getLoginLockRemaining())
+		}
 		return () => {
 			unmountedRef.current = true
 			timerRef.current.forEach(clearTimeout)
 			timerRef.current = []
+			stopCountdown()
 		}
-	}, [])
+	}, [startCountdown, stopCountdown])
 
 	const pushTimer = useCallback((fn: () => void, delay: number) => {
 		const id = setTimeout(() => {
@@ -36,6 +88,11 @@ export default function Login() {
 
 	const handleLogin = useCallback(() => {
 		if (loading) return
+
+		if (isLoginLocked()) {
+			setCountdown(getLoginLockRemaining())
+			return
+		}
 
 		if (!username.trim()) {
 			setErrorMsg('请输入账号')
@@ -51,6 +108,10 @@ export default function Login() {
 
 		pushTimer(() => {
 			if (username === FIXED_USERNAME && password === FIXED_PASSWORD) {
+				clearLoginLock()
+				stopCountdown()
+				setLocked(false)
+				setCountdown(0)
 				setLogin()
 				Taro.showToast({ title: '登录成功', icon: 'success', duration: 1000 })
 				pushTimer(() => {
@@ -59,10 +120,23 @@ export default function Login() {
 				return
 			}
 
-			setErrorMsg('账号或密码错误')
+			const newCount = getLoginFailCount() + 1
+
+			if (newCount >= LOGIN_MAX_FAIL) {
+				const expireTs = Date.now() + LOGIN_LOCK_SEC * 1000
+				setLoginFailCount(newCount)
+				setLoginLockExpire(expireTs)
+				startCountdown(LOGIN_LOCK_SEC)
+				setErrorMsg(`连续错误${LOGIN_MAX_FAIL}次，请${LOGIN_LOCK_SEC}秒后重试`)
+			} else {
+				setLoginFailCount(newCount)
+				const remain = LOGIN_MAX_FAIL - newCount
+				setErrorMsg(`账号或密码错误，还剩${remain}次机会`)
+			}
+
 			setLoading(false)
 		}, 500)
-	}, [loading, username, password, pushTimer])
+	}, [loading, username, password, pushTimer, startCountdown, stopCountdown])
 
 	const handleUsernameChange = useCallback((e) => {
 		setUsername(e.detail.value)
@@ -73,6 +147,11 @@ export default function Login() {
 		setPassword(e.detail.value)
 		setErrorMsg('')
 	}, [])
+
+	const btnDisabled = loading || locked
+	let btnText = '登 录'
+	if (loading) btnText = '登录中...'
+	else if (locked) btnText = `${countdown}s 后重试`
 
 	return (
 		<View className='login-page'>
@@ -120,16 +199,25 @@ export default function Login() {
 					</View>
 				</View>
 
-				{errorMsg ? <View className='error-msg'>{errorMsg}</View> : null}
+				{locked && countdown > 0 ? (
+					<View className='lock-msg'>
+						<Text className='lock-msg-icon'>🔒</Text>
+						<Text className='lock-msg-text'>
+							连续错误{LOGIN_MAX_FAIL}次，请{countdown}秒后重试
+						</Text>
+					</View>
+				) : errorMsg ? (
+					<View className='error-msg'>{errorMsg}</View>
+				) : null}
 
 				<Button
-					className='login-btn'
+					className={`login-btn${locked ? ' login-btn--locked' : ''}`}
 					loading={loading}
-					disabled={loading}
-					hoverClass='login-btn-hover'
+					disabled={btnDisabled}
+					hoverClass={locked ? '' : 'login-btn-hover'}
 					onClick={handleLogin}
 				>
-					{loading ? '登录中...' : '登 录'}
+					{btnText}
 				</Button>
 			</View>
 

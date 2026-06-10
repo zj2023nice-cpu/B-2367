@@ -93,6 +93,30 @@
 	padding-left: 4px;
 }
 
+.lock-msg {
+	display: flex;
+	align-items: center;
+	background: #fff3e0;
+	border-radius: 12px;
+	padding: 16px 20px;
+	margin-bottom: 20px;
+}
+
+.lock-msg-icon {
+	font-size: 32px;
+	margin-right: 12px;
+}
+
+.lock-msg-text {
+	font-size: 24px;
+	color: #e65100;
+	font-weight: 500;
+}
+
+.login-btn--locked {
+	background: #b0b0b0 !important;
+}
+
 .login-btn {
 	width: 100% !important;
 	height: 96px !important;
